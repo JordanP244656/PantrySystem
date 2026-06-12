@@ -12,7 +12,7 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-slate-100">
         <Navbar />
-        <main className="max-w-7xl mx-auto px-4 py-6">
+        <main className="max-w-7xl mx-auto px-3 py-4 pb-24 md:pb-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/inventory" element={<Inventory />} />

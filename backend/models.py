@@ -1,7 +1,20 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
+
+
+class UPCCache(Base):
+    __tablename__ = "upc_cache"
+    id = Column(Integer, primary_key=True, index=True)
+    barcode = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    brand = Column(String, nullable=True)
+    size = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    image_url = Column(String, nullable=True)
+    source = Column(String, nullable=True)
+    cached_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Item(Base):

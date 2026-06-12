@@ -1,31 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
-import { massStock, lookupUPC, getItems, createItem, addItemSize } from '../api'
+import { massStock, lookupUPC, getItems, createItem } from '../api'
 import BarcodeScanner from '../components/BarcodeScanner'
 
 const PRESET_STORES = ['Costco', 'Target', 'ShopRite', 'Walmart', 'Whole Foods', 'Other']
 
 export default function MassStockIn() {
-  const [step, setStep] = useState('store') // store -> scanning -> review -> done
+  const [step, setStep] = useState('store')
   const [storeName, setStoreName] = useState('')
+  const [customStore, setCustomStore] = useState('')
   const [performer, setPerformer] = useState('')
   const [items, setItems] = useState([])
   const [showScanner, setShowScanner] = useState(false)
+  const [lastScanned, setLastScanned] = useState(null)
   const [scanning, setScanning] = useState(false)
-  const [lookupStatus, setLookupStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const barcodeBuffer = useRef('')
   const barcodeTimer = useRef(null)
-  const qtyInputRef = useRef(null)
-  const [pendingItem, setPendingItem] = useState(null)
-  const [pendingQty, setPendingQty] = useState(1)
-  const [pendingExp, setPendingExp] = useState('')
+  const manualRef = useRef(null)
 
-  // USB barcode scanner support
+  const effectiveStore = storeName === 'Other' ? customStore : storeName
+
   useEffect(() => {
     if (step !== 'scanning') return
     const handleKey = (e) => {
-      if (e.target.tagName === 'INPUT' && e.target !== document.activeElement) return
+      if (e.target === manualRef.current) return
       if (e.key === 'Enter' && barcodeBuffer.current.length > 3) {
         handleBarcode(barcodeBuffer.current)
         barcodeBuffer.current = ''
@@ -37,68 +36,62 @@ export default function MassStockIn() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [step])
+  }, [step, items])
 
   const handleBarcode = async (barcode) => {
-    setLookupStatus({ type: 'loading', msg: `Looking up ${barcode}...` })
-    try {
-      // Check if item already exists in our system
-      const existing = await getItems(barcode)
-      if (existing.length > 0) {
-        const item = existing[0]
-        const size = item.sizes.find(s => s.is_default) || item.sizes[0]
-        setPendingItem({ item, size, barcode, isNew: false })
-        setLookupStatus({ type: 'found', msg: `Found: ${item.name}` })
-        setPendingQty(1)
-        setTimeout(() => qtyInputRef.current?.focus(), 100)
-        return
-      }
-      // Look up from Open Food Facts
-      const product = await lookupUPC(barcode)
-      setPendingItem({ product, barcode, isNew: true })
-      setLookupStatus({ type: 'new', msg: `New item: ${product.name}` })
-      setPendingQty(1)
-      setTimeout(() => qtyInputRef.current?.focus(), 100)
-    } catch (e) {
-      setPendingItem({ barcode, isNew: true, product: { name: '', size: '', category: '' } })
-      setLookupStatus({ type: 'unknown', msg: 'Unknown barcode — enter details manually' })
-      setTimeout(() => qtyInputRef.current?.focus(), 100)
-    }
-  }
+    if (scanning) return
+    setScanning(true)
+    setLastScanned({ status: 'loading', barcode })
 
-  const addToList = async () => {
-    if (!pendingItem) return
-    if (pendingItem.isNew) {
-      const name = pendingItem.product?.name || pendingItem.manualName
-      if (!name) { setLookupStatus({ type: 'error', msg: 'Enter a name for this item' }); return }
-      // Create the item in the system
-      const sizeLabel = pendingItem.product?.size || pendingItem.manualSize || 'Each'
-      let newItem
-      try {
-        newItem = await createItem({ name, barcode: pendingItem.barcode, category: pendingItem.product?.category || '', sizes: [{ size_label: sizeLabel, unit_count: 1, is_default: true }] })
-      } catch (e) {
-        // Item might already exist with same name
-        const existing = await getItems(name)
-        newItem = existing[0]
+    try {
+      // Check if already in our system
+      const existing = await getItems(barcode)
+      let item, size
+
+      if (existing.length > 0) {
+        item = existing[0]
+        size = item.sizes.find(s => s.is_default) || item.sizes[0]
+      } else {
+        // Look up from UPC databases
+        const product = await lookupUPC(barcode, effectiveStore)
+        const sizeLabel = product.size || 'Each'
+        try {
+          item = await createItem({ name: product.name, barcode, category: product.category || '', sizes: [{ size_label: sizeLabel, unit_count: 1, is_default: true }] })
+        } catch {
+          const found = await getItems(product.name)
+          item = found[0]
+        }
+        size = item.sizes[0]
       }
-      const size = newItem.sizes[0]
-      setItems(prev => [...prev, { item_id: newItem.id, item_size_id: size.id, itemName: newItem.name, sizeLabel: size.size_label, quantity: pendingQty, expiration_date: pendingExp || null, barcode: pendingItem.barcode }])
-    } else {
-      const { item, size } = pendingItem
+
+      // Merge with existing or add new
       setItems(prev => {
-        const existing = prev.findIndex(i => i.item_id === item.id && i.item_size_id === size?.id)
-        if (existing >= 0) {
+        const idx = prev.findIndex(i => i.item_id === item.id && i.item_size_id === size?.id)
+        if (idx >= 0) {
           const updated = [...prev]
-          updated[existing].quantity += pendingQty
+          updated[idx] = { ...updated[idx], quantity: updated[idx].quantity + 1 }
+          setLastScanned({ status: 'added', itemName: updated[idx].itemName, quantity: updated[idx].quantity, image_url: updated[idx].image_url })
           return updated
         }
-        return [...prev, { item_id: item.id, item_size_id: size?.id, itemName: item.name, sizeLabel: size?.size_label || 'Each', quantity: pendingQty, expiration_date: pendingExp || null, barcode: pendingItem.barcode }]
+        const newEntry = {
+          item_id: item.id,
+          item_size_id: size?.id,
+          itemName: item.name,
+          sizeLabel: size?.size_label || 'Each',
+          quantity: 1,
+          image_url: null,
+        }
+        // Try to get image from UPC cache
+        lookupUPC(barcode, effectiveStore).then(p => {
+          if (p.image_url) setItems(prev2 => prev2.map(i => i.item_id === item.id ? { ...i, image_url: p.image_url, purchase_url: p.purchase_url } : i))
+        }).catch(() => {})
+        setLastScanned({ status: 'added', itemName: item.name, quantity: 1, image_url: null })
+        return [newEntry, ...prev]
       })
+    } catch (e) {
+      setLastScanned({ status: 'error', barcode, msg: e.response?.data?.detail || 'Not found — scan again or skip' })
     }
-    setPendingItem(null)
-    setLookupStatus(null)
-    setPendingQty(1)
-    setPendingExp('')
+    setScanning(false)
   }
 
   const submit = async () => {
@@ -109,8 +102,8 @@ export default function MassStockIn() {
       await massStock({
         store_id: null,
         performed_by: performer || null,
-        notes: `Store: ${storeName}`,
-        items: items.map(({ item_id, item_size_id, quantity, expiration_date }) => ({ item_id, item_size_id, quantity, expiration_date })),
+        notes: `Store: ${effectiveStore}`,
+        items: items.map(({ item_id, item_size_id, quantity }) => ({ item_id, item_size_id, quantity, expiration_date: null })),
       })
       setStep('done')
     } catch (e) {
@@ -121,185 +114,128 @@ export default function MassStockIn() {
   }
 
   if (step === 'done') return (
-    <div className="max-w-xl mx-auto text-center py-20">
+    <div className="max-w-lg mx-auto text-center py-20 px-4">
       <div className="text-6xl mb-4">✅</div>
-      <h2 className="text-2xl font-bold text-green-700">{items.length} items stocked from {storeName}!</h2>
-      <button onClick={() => { setStep('store'); setItems([]); setStoreName(''); setPendingItem(null); setLookupStatus(null) }}
-        className="mt-6 bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold">
+      <h2 className="text-2xl font-bold text-green-700">{items.length} items stocked!</h2>
+      <p className="text-slate-500 mt-1">From {effectiveStore}</p>
+      <button onClick={() => { setStep('store'); setItems([]); setStoreName(''); setLastScanned(null) }}
+        className="mt-6 bg-blue-600 text-white px-8 py-3 rounded-2xl font-semibold text-lg w-full">
         Stock Another Load
       </button>
     </div>
   )
 
   if (step === 'store') return (
-    <div className="max-w-lg mx-auto space-y-6">
+    <div className="max-w-lg mx-auto space-y-5 px-2">
       <h1 className="text-2xl font-bold text-slate-800">Mass Stock In</h1>
-      <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-        <h2 className="font-semibold text-slate-700 text-lg">Where did you shop?</h2>
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+        <h2 className="font-semibold text-slate-700">Where did you shop?</h2>
         <div className="grid grid-cols-2 gap-3">
           {PRESET_STORES.map(s => (
             <button key={s} onClick={() => setStoreName(s)}
-              className={`py-4 rounded-xl border-2 font-semibold text-sm transition-colors ${storeName === s ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}>
+              className={`py-4 rounded-2xl border-2 font-semibold transition-colors ${storeName === s ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}>
               {s}
             </button>
           ))}
         </div>
         {storeName === 'Other' && (
-          <input type="text" placeholder="Store name" onChange={e => setStoreName(e.target.value)}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" placeholder="Store name" value={customStore} onChange={e => setCustomStore(e.target.value)}
+            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         )}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Who's stocking? (optional)</label>
-          <input type="text" value={performer} onChange={e => setPerformer(e.target.value)} placeholder="Your name"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <button onClick={() => setStep('scanning')} disabled={!storeName}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold py-3 rounded-xl text-lg">
+        <input type="text" value={performer} onChange={e => setPerformer(e.target.value)} placeholder="Who's stocking? (optional)"
+          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button onClick={() => setStep('scanning')} disabled={!storeName || (storeName === 'Other' && !customStore)}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-lg">
           Start Scanning →
         </button>
       </div>
     </div>
   )
 
-  if (step === 'scanning') return (
-    <div className="max-w-xl mx-auto space-y-4">
+  return (
+    <div className="max-w-lg mx-auto space-y-4 px-2">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Scanning — {storeName}</h1>
-          <p className="text-slate-500 text-sm">{items.length} items added</p>
+          <h1 className="text-xl font-bold text-slate-800">{effectiveStore}</h1>
+          <p className="text-slate-500 text-sm">{items.length} items · {items.reduce((s, i) => s + i.quantity, 0)} units</p>
         </div>
-        <button onClick={() => setStep('review')}
-          className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold">
+        <button onClick={() => setStep('review')} disabled={items.length === 0}
+          className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-5 py-2.5 rounded-xl font-semibold">
           Done →
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-        <div className="flex gap-2">
-          <button onClick={() => setShowScanner(true)}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-semibold text-lg">
-            📷 Scan with Camera
-          </button>
-          <div className="flex-1 relative">
-            <input type="text" placeholder="Or type / scan barcode here..."
-              className="w-full h-full border-2 border-slate-300 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyDown={e => { if (e.key === 'Enter') { handleBarcode(e.target.value); e.target.value = '' } }} />
-          </div>
-        </div>
-
-        {lookupStatus && (
-          <div className={`p-3 rounded-lg text-sm font-medium ${
-            lookupStatus.type === 'loading' ? 'bg-blue-50 text-blue-700' :
-            lookupStatus.type === 'found' ? 'bg-green-50 text-green-700' :
-            lookupStatus.type === 'new' ? 'bg-yellow-50 text-yellow-700' :
-            lookupStatus.type === 'error' ? 'bg-red-50 text-red-700' :
-            'bg-orange-50 text-orange-700'
-          }`}>
-            {lookupStatus.msg}
-          </div>
-        )}
-
-        {pendingItem && (
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            {pendingItem.isNew && (
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Item Name</label>
-                  <input type="text" defaultValue={pendingItem.product?.name || ''}
-                    onChange={e => setPendingItem(p => ({ ...p, product: { ...p.product, name: e.target.value } }))}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Size</label>
-                    <input type="text" defaultValue={pendingItem.product?.size || ''}
-                      onChange={e => setPendingItem(p => ({ ...p, product: { ...p.product, size: e.target.value } }))}
-                      placeholder="e.g. 12oz, Case/24"
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
-                    <input type="text" defaultValue={pendingItem.product?.category || ''}
-                      onChange={e => setPendingItem(p => ({ ...p, product: { ...p.product, category: e.target.value } }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
-              </div>
-            )}
-            {!pendingItem.isNew && (
-              <div className="font-semibold text-slate-800">{pendingItem.item.name} — {pendingItem.size?.size_label}</div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Quantity</label>
-                <input ref={qtyInputRef} type="number" min="1" value={pendingQty}
-                  onChange={e => setPendingQty(parseInt(e.target.value) || 1)}
-                  onKeyDown={e => { if (e.key === 'Enter') addToList() }}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Expiry (optional)</label>
-                <input type="date" value={pendingExp} onChange={e => setPendingExp(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <button onClick={addToList} className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 rounded-lg font-medium text-sm">
-              ✓ Add to List
-            </button>
-          </div>
-        )}
+      <div className="space-y-2">
+        <button onClick={() => setShowScanner(true)} disabled={scanning}
+          className="w-full bg-blue-600 active:bg-blue-800 disabled:opacity-50 text-white font-bold py-5 rounded-2xl text-xl">
+          {scanning ? '⏳ Looking up...' : '📷 Scan Item'}
+        </button>
+        <input ref={manualRef} type="text" placeholder="Or type / scan barcode + Enter"
+          onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
+          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
+      {lastScanned && (
+        <div className={`p-4 rounded-2xl flex items-center gap-3 ${lastScanned.status === 'added' ? 'bg-green-50 border border-green-200' : lastScanned.status === 'loading' ? 'bg-blue-50 border border-blue-200' : 'bg-red-50 border border-red-200'}`}>
+          {lastScanned.image_url && <img src={lastScanned.image_url} alt="" className="w-12 h-12 object-contain rounded-lg bg-white border" />}
+          <div>
+            {lastScanned.status === 'added' && <>
+              <div className="font-semibold text-green-800">{lastScanned.itemName}</div>
+              <div className="text-green-600 text-sm">×{lastScanned.quantity} total</div>
+            </>}
+            {lastScanned.status === 'loading' && <div className="text-blue-700 font-medium">Looking up barcode...</div>}
+            {lastScanned.status === 'error' && <div className="text-red-700 font-medium">{lastScanned.msg}</div>}
+          </div>
+        </div>
+      )}
+
       {items.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h3 className="font-semibold text-slate-700 mb-2 text-sm">Items Added ({items.length})</h3>
-          <ul className="space-y-1">
-            {items.map((item, i) => (
-              <li key={i} className="flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-800">{item.itemName}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-slate-500">{item.sizeLabel}</span>
-                  <span className="font-bold text-blue-700">×{item.quantity}</span>
-                  <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600 text-xs">✕</button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+          {items.map((item, i) => (
+            <div key={i} className="flex items-center gap-3 p-3">
+              {item.image_url
+                ? <img src={item.image_url} alt="" className="w-10 h-10 object-contain rounded-lg bg-slate-50 border flex-shrink-0" />
+                : <div className="w-10 h-10 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-400 text-lg">📦</div>
+              }
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-slate-800 truncate">{item.itemName}</div>
+                <div className="text-slate-400 text-xs">{item.sizeLabel}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })} className="w-7 h-7 rounded-full bg-slate-200 font-bold text-slate-600 flex items-center justify-center">−</button>
+                <span className="font-bold text-blue-700 w-6 text-center">{item.quantity}</span>
+                <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })} className="w-7 h-7 rounded-full bg-slate-200 font-bold text-slate-600 flex items-center justify-center">+</button>
+                <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))} className="w-7 h-7 rounded-full bg-red-100 text-red-500 flex items-center justify-center text-sm">✕</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {showScanner && <BarcodeScanner onDetected={(b) => { setShowScanner(false); handleBarcode(b) }} onClose={() => setShowScanner(false)} />}
-    </div>
-  )
 
-  if (step === 'review') return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold text-slate-800">Review — {storeName}</h1>
-      {error && <div className="bg-red-100 text-red-800 p-3 rounded-lg text-sm">{error}</div>}
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <table className="w-full text-sm">
-          <thead><tr className="text-left text-slate-500 border-b text-xs">
-            <th className="pb-2 pr-4">Item</th><th className="pb-2 pr-4">Size</th><th className="pb-2 pr-4">Qty</th><th className="pb-2">Exp</th>
-          </tr></thead>
-          <tbody>
-            {items.map((item, i) => (
-              <tr key={i} className="border-b border-slate-50">
-                <td className="py-2 pr-4 font-medium">{item.itemName}</td>
-                <td className="py-2 pr-4 text-slate-500">{item.sizeLabel}</td>
-                <td className="py-2 pr-4 font-bold text-blue-700">{item.quantity}</td>
-                <td className="py-2 text-slate-400 text-xs">{item.expiration_date || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex gap-3">
-        <button onClick={() => setStep('scanning')} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-xl font-semibold">← Back</button>
-        <button onClick={submit} disabled={loading || items.length === 0}
-          className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-3 rounded-xl font-semibold">
-          {loading ? 'Saving...' : `Submit ${items.length} Items`}
-        </button>
-      </div>
+      {step === 'review' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
+          <div className="bg-white rounded-t-3xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <h2 className="font-bold text-xl">Confirm Stock In</h2>
+            {error && <div className="bg-red-100 text-red-700 p-3 rounded-xl text-sm">{error}</div>}
+            <div className="space-y-2">
+              {items.map((item, i) => (
+                <div key={i} className="flex justify-between text-sm">
+                  <span className="font-medium">{item.itemName}</span>
+                  <span className="font-bold text-blue-700">×{item.quantity}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setStep('scanning')} className="bg-slate-200 text-slate-700 py-3 rounded-2xl font-semibold">Back</button>
+              <button onClick={submit} disabled={loading} className="bg-green-600 text-white py-3 rounded-2xl font-semibold disabled:opacity-50">
+                {loading ? 'Saving...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
