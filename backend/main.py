@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import items, stores, transactions, reports, upc, auth
+from routers import items, stores, transactions, reports, upc
 
 Base.metadata.create_all(bind=engine)
 
@@ -14,7 +14,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(items.router, prefix="/api", tags=["items"])
 app.include_router(stores.router, prefix="/api", tags=["stores"])
 app.include_router(transactions.router, prefix="/api", tags=["transactions"])
