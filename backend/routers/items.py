@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from database import get_db
 from models import Item, ItemSize, StockBatch
 from schemas import ItemCreate, ItemRead, ItemUpdate, ItemSizeCreate, ItemSizeRead
+from routers.auth import require_admin
 
 router = APIRouter()
 
@@ -20,7 +21,7 @@ def list_items(q: Optional[str] = Query(None), db: Session = Depends(get_db)):
 
 
 @router.post("/items", response_model=ItemRead)
-def create_item(data: ItemCreate, db: Session = Depends(get_db)):
+def create_item(data: ItemCreate, db: Session = Depends(get_db), x_admin_token: str = Header(default=""), _=Depends(lambda x_admin_token: require_admin(x_admin_token))):
     existing = db.query(Item).filter(Item.name == data.name).first()
     if existing:
         raise HTTPException(400, "Item with this name already exists")
