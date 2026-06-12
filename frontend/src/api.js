@@ -27,6 +27,8 @@ export const getTransactions = (params) => api.get('/transactions', { params }).
 export const getCurrentStock = () => api.get('/transactions/current-stock').then(r => r.data)
 export const getLowStock = () => api.get('/transactions/low-stock').then(r => r.data)
 
+export const lookupUPC = (barcode) => api.get(`/upc/${barcode}`).then(r => r.data)
+
 export const getUsageReport = (params) => api.get('/reports/usage', { params }).then(r => r.data)
 export const getThrowOutReport = (params) => api.get('/reports/throw-out', { params }).then(r => r.data)
 export const getExpiringReport = (params) => api.get('/reports/expiring', { params }).then(r => r.data)

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import items, stores, transactions, reports
+from routers import items, stores, transactions, reports, upc
 
 Base.metadata.create_all(bind=engine)
 
@@ -18,6 +18,7 @@ app.include_router(items.router, prefix="/api", tags=["items"])
 app.include_router(stores.router, prefix="/api", tags=["stores"])
 app.include_router(transactions.router, prefix="/api", tags=["transactions"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])
+app.include_router(upc.router, prefix="/api", tags=["upc"])
 
 
 @app.get("/api/health")
