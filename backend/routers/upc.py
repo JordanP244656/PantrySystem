@@ -32,6 +32,24 @@ def _lookup_openfoodfacts(barcode: str):
     }
 
 
+def _lookup_upcdatabase(barcode: str):
+    url = f"https://upcdatabase.org/api/{barcode}"
+    req = urllib.request.Request(url, headers={"User-Agent": "PantrySystem/1.0", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=4) as response:
+        data = json.loads(response.read())
+    if data.get("error") or not data.get("name"):
+        return None
+    return {
+        "barcode": barcode,
+        "name": data.get("name") or "",
+        "brand": data.get("brand") or "",
+        "size": data.get("size") or "",
+        "category": data.get("category") or "",
+        "image_url": None,
+        "source": "upcdatabase",
+    }
+
+
 def _lookup_upcitemdb(barcode: str):
     url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}"
     req = urllib.request.Request(url, headers={"User-Agent": "PantrySystem/1.0", "Accept": "application/json"})
@@ -62,8 +80,9 @@ def _lookup_upcitemdb(barcode: str):
 def lookup_upc(barcode: str):
     result = None
     # Run both lookups in parallel, take whichever returns first with a result
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
+            executor.submit(_lookup_upcdatabase, barcode): "upcdatabase",
             executor.submit(_lookup_upcitemdb, barcode): "upcitemdb",
             executor.submit(_lookup_openfoodfacts, barcode): "off",
         }
