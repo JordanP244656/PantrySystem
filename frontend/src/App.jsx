@@ -7,7 +7,7 @@ import Reports from './pages/Reports'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-100">
+      <div className="min-h-screen bg-[#0a0a0a]">
         <Navbar />
         <main className="max-w-7xl mx-auto px-3 py-4 pb-24 md:pb-6">
           <Routes>
