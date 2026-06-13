@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { scanOut, getItems } from '../api'
+import { scanOut, getItems, deleteItem } from '../api'
 import BarcodeScanner from '../components/BarcodeScanner'
 
 export default function ScanOut() {
@@ -47,9 +47,9 @@ export default function ScanOut() {
         return
       }
       await scanOut({ item_id: item.id, item_size_id: size.id, quantity: 1, performed_by: performer || null })
-      setSessionLog(prev => [{ itemName: item.name, size: size.size_label, time: new Date().toLocaleTimeString(), by: performer }, ...prev.slice(0, 19)])
-      setStatus({ type: 'success', msg: item.name })
-      setTimeout(() => setStatus(null), 2500)
+      setSessionLog(prev => [{ itemName: item.name, itemId: item.id, size: size.size_label, time: new Date().toLocaleTimeString(), by: performer }, ...prev.slice(0, 19)])
+      setStatus({ type: 'success', msg: item.name, itemId: item.id, itemName: item.name })
+      setTimeout(() => setStatus(null), 4000)
     } catch (e) {
       setStatus({ type: 'error', msg: e.response?.data?.detail || 'Error — not enough stock?' })
       setTimeout(() => setStatus(null), 3000)
@@ -94,8 +94,17 @@ export default function ScanOut() {
           status.type === 'loading' ? 'bg-blue-50 border-2 border-blue-200 text-blue-700' :
           'bg-red-50 border-2 border-red-200 text-red-700'
         }`}>
-          {status.type === 'success' && <div className="text-3xl mb-1">✓</div>}
-          {status.msg}
+          {status.type === 'success' && (
+            <>
+              <div className="text-3xl mb-1">✓</div>
+              <div>{status.msg}</div>
+              <button
+                onClick={async () => { if (confirm(`Remove "${status.itemName}" from the system entirely?`)) { await deleteItem(status.itemId); setStatus(null) } }}
+                className="mt-2 text-xs text-red-500 underline font-normal"
+              >Remove from system</button>
+            </>
+          )}
+          {status.type !== 'success' && status.msg}
         </div>
       )}
 

@@ -15,6 +15,8 @@ export default function MassStockIn() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showReview, setShowReview] = useState(false)
+  const [showManualAdd, setShowManualAdd] = useState(false)
+  const [pendingBarcode, setPendingBarcode] = useState('')
   const barcodeBuffer = useRef('')
   const barcodeTimer = useRef(null)
   const manualRef = useRef(null)
@@ -45,7 +47,6 @@ export default function MassStockIn() {
     try {
       const existing = await getItems(barcode)
       let item, size, image_url = null, purchase_url = null
-
       if (existing.length > 0) {
         item = existing[0]
         size = item.sizes.find(s => s.is_default) || item.sizes[0]
@@ -56,16 +57,14 @@ export default function MassStockIn() {
         const product = await lookupUPC(barcode, effectiveStore)
         image_url = product.image_url
         purchase_url = product.purchase_url
-        const sizeLabel = product.size || 'Each'
         try {
-          item = await createItem({ name: product.name, barcode, category: product.category || '', sizes: [{ size_label: sizeLabel, unit_count: 1, is_default: true }] })
+          item = await createItem({ name: product.name, barcode, category: product.category || '', sizes: [{ size_label: product.size || 'Each', unit_count: 1, is_default: true }] })
         } catch {
           const found = await getItems(product.name)
           item = found[0]
         }
         size = item.sizes[0]
       }
-
       setItems(prev => {
         const idx = prev.findIndex(i => i.item_id === item.id && i.item_size_id === size?.id)
         if (idx >= 0) {
@@ -79,30 +78,24 @@ export default function MassStockIn() {
         return [entry, ...prev]
       })
     } catch (e) {
-      setLastScanned({ status: 'error', msg: 'Not found — try again or skip' })
-      setTimeout(() => setLastScanned(null), 3000)
+      setPendingBarcode(barcode)
+      setLastScanned({ status: 'error', msg: 'Not found in database' })
     }
     setScanning(false)
   }
 
   const submit = async () => {
     if (items.length === 0) return
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
       await massStock({
-        store_id: null,
-        performed_by: null,
+        store_id: null, performed_by: null,
         notes: `Store: ${effectiveStore}`,
         items: items.map(({ item_id, item_size_id, quantity }) => ({ item_id, item_size_id, quantity, expiration_date: null })),
       })
-      setStep('done')
-      setShowReview(false)
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Error submitting')
-    } finally {
-      setLoading(false)
-    }
+      setStep('done'); setShowReview(false)
+    } catch (e) { setError(e.response?.data?.detail || 'Error') }
+    finally { setLoading(false) }
   }
 
   if (step === 'done') return (
@@ -111,9 +104,7 @@ export default function MassStockIn() {
       <h2 className="text-3xl font-bold text-slate-800">{items.length} items stocked</h2>
       <p className="text-slate-400">from {effectiveStore}</p>
       <button onClick={() => { setStep('store'); setItems([]); setStoreName(''); setLastScanned(null) }}
-        className="w-full btn-primary py-4 text-lg mt-6">
-        Stock Another Load
-      </button>
+        className="w-full btn-primary py-4 text-lg mt-6">Stock Another Load</button>
     </div>
   )
 
@@ -130,10 +121,8 @@ export default function MassStockIn() {
       </div>
       {storeName === 'Other' && (
         <div className="flex gap-2">
-          <input type="text" placeholder="Store name" value={customStore} onChange={e => setCustomStore(e.target.value)}
-            className="input flex-1" autoFocus />
-          <button onClick={() => setStep('scanning')} disabled={!customStore}
-            className="btn-primary px-5 py-3 disabled:opacity-40">Go →</button>
+          <input type="text" placeholder="Store name" value={customStore} onChange={e => setCustomStore(e.target.value)} className="input flex-1" autoFocus />
+          <button onClick={() => setStep('scanning')} disabled={!customStore} className="btn-primary px-5 py-3 disabled:opacity-40">Go →</button>
         </div>
       )}
     </div>
@@ -146,10 +135,12 @@ export default function MassStockIn() {
           <h1 className="text-xl font-bold text-slate-800">{effectiveStore}</h1>
           <p className="text-slate-400 text-sm">{items.length} items · {items.reduce((s, i) => s + i.quantity, 0)} units</p>
         </div>
-        <button onClick={() => setShowReview(true)} disabled={items.length === 0}
-          className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-5 py-2.5 rounded-xl font-semibold text-sm">
-          Done →
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { setPendingBarcode(''); setShowManualAdd(true) }}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-semibold text-sm">+ Add</button>
+          <button onClick={() => setShowReview(true)} disabled={items.length === 0}
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm">Done →</button>
+        </div>
       </div>
 
       <button onClick={() => setShowScanner(true)} disabled={scanning}
@@ -165,16 +156,20 @@ export default function MassStockIn() {
         <div className={`rounded-2xl p-4 flex items-center gap-3 ${
           lastScanned.status === 'added' ? 'bg-green-50 border-2 border-green-200' :
           lastScanned.status === 'loading' ? 'bg-slate-50 border-2 border-slate-200' :
-          'bg-red-50 border-2 border-red-200'
-        }`}>
+          'bg-red-50 border-2 border-red-200'}`}>
           {lastScanned.image_url && <img src={lastScanned.image_url} alt="" className="w-14 h-14 object-contain rounded-xl bg-white border shadow-sm flex-shrink-0" />}
-          <div>
+          <div className="flex-1">
             {lastScanned.status === 'added' && <>
               <div className="font-bold text-green-800 text-lg">{lastScanned.itemName}</div>
               <div className="text-green-600 text-sm">×{lastScanned.quantity} in list</div>
             </>}
             {lastScanned.status === 'loading' && <div className="text-slate-500 font-medium">Looking up...</div>}
-            {lastScanned.status === 'error' && <div className="text-red-700 font-medium">{lastScanned.msg}</div>}
+            {lastScanned.status === 'error' && (
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-red-700 font-medium">Not found</div>
+                <button onClick={() => setShowManualAdd(true)} className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ Add Manually</button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -185,8 +180,7 @@ export default function MassStockIn() {
             <div key={i} className="flex items-center gap-3 p-3 border-b border-slate-50 last:border-0">
               {item.image_url
                 ? <img src={item.image_url} alt="" className="w-11 h-11 object-contain rounded-xl bg-slate-50 border flex-shrink-0" />
-                : <div className="w-11 h-11 rounded-xl bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-300 text-xl">📦</div>
-              }
+                : <div className="w-11 h-11 rounded-xl bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-300 text-xl">📦</div>}
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-slate-800 truncate text-sm">{item.itemName}</div>
                 <div className="text-slate-400 text-xs">{item.sizeLabel}</div>
@@ -207,6 +201,14 @@ export default function MassStockIn() {
 
       {showScanner && <BarcodeScanner onDetected={(b) => { setShowScanner(false); handleBarcode(b) }} onClose={() => setShowScanner(false)} />}
 
+      {showManualAdd && (
+        <ManualAddModal
+          barcode={pendingBarcode}
+          onAdd={(entry) => { setItems(prev => { const idx = prev.findIndex(i => i.item_id === entry.item_id && i.item_size_id === entry.item_size_id); if (idx >= 0) { const u = [...prev]; u[idx].quantity += entry.quantity; return u } return [entry, ...prev] }); setShowManualAdd(false); setLastScanned(null) }}
+          onClose={() => setShowManualAdd(false)}
+        />
+      )}
+
       {showReview && (
         <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowReview(false)}>
           <div className="bg-white rounded-t-3xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -222,13 +224,60 @@ export default function MassStockIn() {
             </div>
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button onClick={() => setShowReview(false)} className="btn-secondary py-3">Back</button>
-              <button onClick={submit} disabled={loading} className="btn-primary py-3 disabled:opacity-50">
-                {loading ? 'Saving...' : 'Submit'}
-              </button>
+              <button onClick={submit} disabled={loading} className="btn-primary py-3 disabled:opacity-50">{loading ? 'Saving...' : 'Submit'}</button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ManualAddModal({ barcode, onAdd, onClose }) {
+  const [name, setName] = useState('')
+  const [size, setSize] = useState('Each')
+  const [qty, setQty] = useState(1)
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!name) return
+    setSaving(true)
+    try {
+      let item
+      try {
+        item = await createItem({ name, barcode: barcode || null, category: '', sizes: [{ size_label: size, unit_count: 1, is_default: true }] })
+      } catch {
+        const found = await getItems(name)
+        item = found[0]
+      }
+      const s = item.sizes[0]
+      onAdd({ item_id: item.id, item_size_id: s?.id, itemName: item.name, sizeLabel: s?.size_label || size, quantity: qty, image_url: null })
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={onClose}>
+      <div className="bg-white rounded-t-3xl w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <h2 className="font-bold text-xl text-slate-800">Add Item Manually</h2>
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1">Item Name</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cheerios" className="input" autoFocus />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Size</label>
+            <input type="text" value={size} onChange={e => setSize(e.target.value)} placeholder="e.g. 18oz" className="input" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Quantity</label>
+            <input type="number" min="1" value={qty} onChange={e => setQty(parseInt(e.target.value) || 1)} className="input" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={onClose} className="btn-secondary py-3">Cancel</button>
+          <button onClick={save} disabled={!name || saving} className="btn-primary py-3 disabled:opacity-40">{saving ? 'Adding...' : 'Add Item'}</button>
+        </div>
+      </div>
     </div>
   )
 }
