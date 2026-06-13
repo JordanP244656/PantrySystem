@@ -51,12 +51,11 @@ export default function MassStockIn() {
         item = existing[0]
         size = item.sizes.find(s => s.is_default) || item.sizes[0]
         lookupUPC(barcode, effectiveStore).then(p => {
-          if (p?.image_url) setItems(prev => prev.map(i => i.item_id === item.id ? { ...i, image_url: p.image_url, purchase_url: p.purchase_url } : i))
+          if (p?.image_url) setItems(prev => prev.map(i => i.item_id === item.id ? { ...i, image_url: p.image_url } : i))
         }).catch(() => {})
       } else {
         const product = await lookupUPC(barcode, effectiveStore)
         image_url = product.image_url
-        purchase_url = product.purchase_url
         try {
           item = await createItem({ name: product.name, barcode, category: product.category || '', sizes: [{ size_label: product.size || 'Each', unit_count: 1, is_default: true }] })
         } catch {
@@ -68,18 +67,18 @@ export default function MassStockIn() {
       setItems(prev => {
         const idx = prev.findIndex(i => i.item_id === item.id && i.item_size_id === size?.id)
         if (idx >= 0) {
-          const updated = [...prev]
-          updated[idx] = { ...updated[idx], quantity: updated[idx].quantity + 1 }
-          setLastScanned({ status: 'added', itemName: updated[idx].itemName, quantity: updated[idx].quantity, image_url: updated[idx].image_url })
-          return updated
+          const u = [...prev]
+          u[idx] = { ...u[idx], quantity: u[idx].quantity + 1 }
+          setLastScanned({ status: 'added', itemName: u[idx].itemName, quantity: u[idx].quantity, image_url: u[idx].image_url })
+          return u
         }
-        const entry = { item_id: item.id, item_size_id: size?.id, itemName: item.name, sizeLabel: size?.size_label || 'Each', quantity: 1, image_url, purchase_url }
+        const entry = { item_id: item.id, item_size_id: size?.id, itemName: item.name, sizeLabel: size?.size_label || 'Each', quantity: 1, image_url }
         setLastScanned({ status: 'added', itemName: item.name, quantity: 1, image_url })
         return [entry, ...prev]
       })
-    } catch (e) {
+    } catch {
       setPendingBarcode(barcode)
-      setLastScanned({ status: 'error', msg: 'Not found in database' })
+      setLastScanned({ status: 'error' })
     }
     setScanning(false)
   }
@@ -99,22 +98,21 @@ export default function MassStockIn() {
   }
 
   if (step === 'done') return (
-    <div className="max-w-lg mx-auto text-center py-20 px-4 space-y-3">
+    <div className="max-w-lg mx-auto text-center py-20 px-4 space-y-2">
       <div className="text-7xl">✅</div>
-      <h2 className="text-3xl font-bold text-slate-800">{items.length} items stocked</h2>
-      <p className="text-slate-400">from {effectiveStore}</p>
+      <h2 className="text-3xl font-bold text-white">{items.length} items stocked</h2>
+      <p className="text-white/40">from {effectiveStore}</p>
       <button onClick={() => { setStep('store'); setItems([]); setStoreName(''); setLastScanned(null) }}
         className="w-full btn-primary py-4 text-lg mt-6">Stock Another Load</button>
     </div>
   )
 
   if (step === 'store') return (
-    <div className="max-w-lg mx-auto px-2 pt-4 space-y-3">
-      <h1 className="text-2xl font-bold text-slate-800">Stock</h1>
+    <div className="max-w-lg mx-auto px-3 pt-5 pb-28 space-y-3">
       <div className="grid grid-cols-3 gap-2">
         {PRESET_STORES.map(s => (
           <button key={s} onClick={() => { setStoreName(s); if (s !== 'Other') setStep('scanning') }}
-            className={`py-4 rounded-2xl border-2 font-semibold text-sm transition-all ${storeName === s ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-200 hover:border-green-300 text-slate-600 bg-white'}`}>
+            className={`py-5 rounded-2xl border font-semibold text-sm transition-all ${storeName === s ? 'border-white bg-white text-black' : 'border-white/10 bg-white/[0.04] hover:bg-white/10 text-white/70'}`}>
             {s}
           </button>
         ))}
@@ -129,45 +127,40 @@ export default function MassStockIn() {
   )
 
   return (
-    <div className="max-w-lg mx-auto space-y-3 px-2 pt-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-lg mx-auto space-y-3 px-3 pt-5 pb-28">
+      <div className="flex items-center justify-between mb-1">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">{effectiveStore}</h1>
-          <p className="text-slate-400 text-sm">{items.length} items · {items.reduce((s, i) => s + i.quantity, 0)} units</p>
+          <p className="text-white/40 text-sm">{effectiveStore} · {items.length} items</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => { setPendingBarcode(''); setShowManualAdd(true) }}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-semibold text-sm">+ Add</button>
-          <button onClick={() => setShowReview(true)} disabled={items.length === 0}
-            className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm">Done →</button>
-        </div>
+        <button onClick={() => setShowReview(true)} disabled={items.length === 0}
+          className="btn-primary px-5 py-2 text-sm disabled:opacity-30">Done →</button>
       </div>
 
       <button onClick={() => setShowScanner(true)} disabled={scanning}
-        className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 text-white font-bold py-7 rounded-2xl text-2xl shadow-md">
+        className="w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all">
         {scanning ? '⏳ Looking up...' : '📷 Scan Item'}
       </button>
 
       <input ref={manualRef} type="text" placeholder="Or type / scan barcode + Enter"
         onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
-        className="input" />
+        className="input text-center" />
 
       {lastScanned && (
-        <div className={`rounded-2xl p-4 flex items-center gap-3 ${
-          lastScanned.status === 'added' ? 'bg-green-50 border-2 border-green-200' :
-          lastScanned.status === 'loading' ? 'bg-slate-50 border-2 border-slate-200' :
-          'bg-red-50 border-2 border-red-200'}`}>
-          {lastScanned.image_url && <img src={lastScanned.image_url} alt="" className="w-14 h-14 object-contain rounded-xl bg-white border shadow-sm flex-shrink-0" />}
+        <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
+          lastScanned.status === 'added' ? 'bg-white/5 border-white/10' :
+          lastScanned.status === 'loading' ? 'bg-white/[0.03] border-white/5' :
+          'bg-red-500/10 border-red-500/20'}`}>
+          {lastScanned.image_url && <img src={lastScanned.image_url} alt="" className="w-12 h-12 object-contain rounded-xl bg-white/5 flex-shrink-0" />}
           <div className="flex-1">
             {lastScanned.status === 'added' && <>
-              <div className="font-bold text-green-800 text-lg">{lastScanned.itemName}</div>
-              <div className="text-green-600 text-sm">×{lastScanned.quantity} in list</div>
+              <div className="font-semibold text-white">{lastScanned.itemName}</div>
+              <div className="text-white/40 text-sm">×{lastScanned.quantity} in list</div>
             </>}
-            {lastScanned.status === 'loading' && <div className="text-slate-500 font-medium">Looking up...</div>}
+            {lastScanned.status === 'loading' && <div className="text-white/40">Looking up...</div>}
             {lastScanned.status === 'error' && (
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-red-700 font-medium">Not found</div>
-                <button onClick={() => setShowManualAdd(true)} className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ Add Manually</button>
+              <div className="flex items-center justify-between">
+                <div className="text-red-400">Not found</div>
+                <button onClick={() => setShowManualAdd(true)} className="bg-white text-black text-xs px-3 py-1.5 rounded-lg font-semibold">+ Add Manually</button>
               </div>
             )}
           </div>
@@ -177,22 +170,22 @@ export default function MassStockIn() {
       {items.length > 0 && (
         <div className="card overflow-hidden">
           {items.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 border-b border-slate-50 last:border-0">
+            <div key={i} className="flex items-center gap-3 p-3 border-b border-white/[0.04] last:border-0">
               {item.image_url
-                ? <img src={item.image_url} alt="" className="w-11 h-11 object-contain rounded-xl bg-slate-50 border flex-shrink-0" />
-                : <div className="w-11 h-11 rounded-xl bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-300 text-xl">📦</div>}
+                ? <img src={item.image_url} alt="" className="w-10 h-10 object-contain rounded-lg bg-white/5 flex-shrink-0" />
+                : <div className="w-10 h-10 rounded-lg bg-white/5 flex-shrink-0 flex items-center justify-center text-white/20">📦</div>}
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-slate-800 truncate text-sm">{item.itemName}</div>
-                <div className="text-slate-400 text-xs">{item.sizeLabel}</div>
+                <div className="font-medium text-white/90 truncate text-sm">{item.itemName}</div>
+                <div className="text-white/30 text-xs">{item.sizeLabel}</div>
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
-                  className="w-8 h-8 rounded-full bg-slate-100 font-bold text-slate-600 flex items-center justify-center">−</button>
-                <span className="font-bold text-green-700 w-6 text-center">{item.quantity}</span>
+                  className="w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">−</button>
+                <span className="font-bold text-white w-5 text-center text-sm">{item.quantity}</span>
                 <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
-                  className="w-8 h-8 rounded-full bg-slate-100 font-bold text-slate-600 flex items-center justify-center">+</button>
+                  className="w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">+</button>
                 <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                  className="w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center ml-1">✕</button>
+                  className="w-7 h-7 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1 text-sm">✕</button>
               </div>
             </div>
           ))}
@@ -202,23 +195,21 @@ export default function MassStockIn() {
       {showScanner && <BarcodeScanner onDetected={(b) => { setShowScanner(false); handleBarcode(b) }} onClose={() => setShowScanner(false)} />}
 
       {showManualAdd && (
-        <ManualAddModal
-          barcode={pendingBarcode}
-          onAdd={(entry) => { setItems(prev => { const idx = prev.findIndex(i => i.item_id === entry.item_id && i.item_size_id === entry.item_size_id); if (idx >= 0) { const u = [...prev]; u[idx].quantity += entry.quantity; return u } return [entry, ...prev] }); setShowManualAdd(false); setLastScanned(null) }}
-          onClose={() => setShowManualAdd(false)}
-        />
+        <ManualAddModal barcode={pendingBarcode}
+          onAdd={(entry) => { setItems(prev => { const idx = prev.findIndex(i => i.item_id === entry.item_id); if (idx >= 0) { const u = [...prev]; u[idx].quantity += entry.quantity; return u } return [entry, ...prev] }); setShowManualAdd(false); setLastScanned(null) }}
+          onClose={() => setShowManualAdd(false)} />
       )}
 
       {showReview && (
-        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowReview(false)}>
-          <div className="bg-white rounded-t-3xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-xl text-slate-800">Submit Stock — {effectiveStore}</h2>
-            {error && <div className="bg-red-100 text-red-700 p-3 rounded-xl text-sm">{error}</div>}
-            <div className="space-y-1 max-h-52 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/70 flex items-end z-50" onClick={() => setShowReview(false)}>
+          <div className="bg-[#141414] border-t border-white/10 rounded-t-3xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="font-bold text-xl text-white">Submit — {effectiveStore}</h2>
+            {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-sm border border-red-500/20">{error}</div>}
+            <div className="space-y-0 max-h-52 overflow-y-auto divide-y divide-white/[0.04]">
               {items.map((item, i) => (
-                <div key={i} className="flex justify-between text-sm py-1.5 border-b border-slate-50">
-                  <span className="text-slate-700">{item.itemName}</span>
-                  <span className="font-bold text-green-700">×{item.quantity}</span>
+                <div key={i} className="flex justify-between text-sm py-2">
+                  <span className="text-white/70">{item.itemName}</span>
+                  <span className="font-bold text-white">×{item.quantity}</span>
                 </div>
               ))}
             </div>
@@ -256,26 +247,17 @@ function ManualAddModal({ barcode, onAdd, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={onClose}>
-      <div className="bg-white rounded-t-3xl w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
-        <h2 className="font-bold text-xl text-slate-800">Add Item Manually</h2>
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Item Name</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cheerios" className="input" autoFocus />
-        </div>
+    <div className="fixed inset-0 bg-black/70 flex items-end z-50" onClick={onClose}>
+      <div className="bg-[#141414] border-t border-white/10 rounded-t-3xl w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <h2 className="font-bold text-xl text-white">Add Item</h2>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Item name" className="input" autoFocus />
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Size</label>
-            <input type="text" value={size} onChange={e => setSize(e.target.value)} placeholder="e.g. 18oz" className="input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Quantity</label>
-            <input type="number" min="1" value={qty} onChange={e => setQty(parseInt(e.target.value) || 1)} className="input" />
-          </div>
+          <input type="text" value={size} onChange={e => setSize(e.target.value)} placeholder="Size (e.g. 18oz)" className="input" />
+          <input type="number" min="1" value={qty} onChange={e => setQty(parseInt(e.target.value) || 1)} className="input" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <button onClick={onClose} className="btn-secondary py-3">Cancel</button>
-          <button onClick={save} disabled={!name || saving} className="btn-primary py-3 disabled:opacity-40">{saving ? 'Adding...' : 'Add Item'}</button>
+          <button onClick={save} disabled={!name || saving} className="btn-primary py-3 disabled:opacity-40">{saving ? 'Adding...' : 'Add'}</button>
         </div>
       </div>
     </div>

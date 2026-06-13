@@ -6,20 +6,9 @@
 
 * { font-family: 'Inter', sans-serif; }
 
-body { background: #f8fafc; }
+body { background: #0a0a0a; color: #f1f5f9; }
 
-.card {
-  @apply bg-white rounded-2xl border border-slate-100 shadow-sm;
-}
-
-.btn-primary {
-  @apply bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-2xl transition-all;
-}
-
-.btn-secondary {
-  @apply bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-2xl transition-all;
-}
-
-.input {
-  @apply w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white;
-}
+.card { @apply bg-[#141414] rounded-2xl border border-white/[0.06]; }
+.btn-primary { @apply bg-white text-black font-semibold rounded-2xl transition-all active:scale-95; }
+.btn-secondary { @apply bg-white/10 hover:bg-white/15 text-white font-semibold rounded-2xl transition-all; }
+.input { @apply w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30; }

@@ -3,7 +3,6 @@ import { scanOut, getItems, deleteItem } from '../api'
 import BarcodeScanner from '../components/BarcodeScanner'
 
 export default function ScanOut() {
-  const [performer, setPerformer] = useState('')
   const [sessionLog, setSessionLog] = useState([])
   const [showScanner, setShowScanner] = useState(false)
   const [status, setStatus] = useState(null)
@@ -26,7 +25,7 @@ export default function ScanOut() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [performer])
+  }, [])
 
   const handleBarcode = async (barcode) => {
     if (processing) return
@@ -35,19 +34,21 @@ export default function ScanOut() {
     try {
       const items = await getItems(barcode)
       if (items.length === 0) {
-        setStatus({ type: 'error', msg: `Barcode not in system. Stock it first.` })
+        setStatus({ type: 'error', msg: 'Not in system — stock it first' })
+        setTimeout(() => setStatus(null), 3000)
         setProcessing(false)
         return
       }
       const item = items[0]
       const size = item.sizes.find(s => s.is_default) || item.sizes[0]
       if (!size) {
-        setStatus({ type: 'error', msg: `${item.name} has no sizes set up.` })
+        setStatus({ type: 'error', msg: `${item.name} has no sizes` })
+        setTimeout(() => setStatus(null), 3000)
         setProcessing(false)
         return
       }
-      await scanOut({ item_id: item.id, item_size_id: size.id, quantity: 1, performed_by: performer || null })
-      setSessionLog(prev => [{ itemName: item.name, itemId: item.id, size: size.size_label, time: new Date().toLocaleTimeString(), by: performer }, ...prev.slice(0, 19)])
+      await scanOut({ item_id: item.id, item_size_id: size.id, quantity: 1, performed_by: null })
+      setSessionLog(prev => [{ itemName: item.name, itemId: item.id, size: size.size_label, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 19)])
       setStatus({ type: 'success', msg: item.name, itemId: item.id, itemName: item.name })
       setTimeout(() => setStatus(null), 4000)
     } catch (e) {
@@ -58,67 +59,54 @@ export default function ScanOut() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-4 px-2">
-      <div className="pt-2">
-        <h1 className="text-2xl font-bold text-slate-800">Scan Out</h1>
-        <p className="text-slate-500 text-sm">Scan or search an item to remove it from inventory</p>
-      </div>
+    <div className="max-w-lg mx-auto space-y-3 px-3 pt-5 pb-28">
+      <button
+        onClick={() => setShowScanner(true)}
+        disabled={processing}
+        className="w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all"
+      >
+        {processing ? '⏳' : '📷 Scan Out'}
+      </button>
 
-      <div className="card p-4 space-y-3">
-        <input
-          type="text"
-          value={performer}
-          onChange={e => setPerformer(e.target.value)}
-          placeholder="Your name (optional)"
-          className="input"
-        />
-        <button
-          onClick={() => setShowScanner(true)}
-          disabled={processing}
-          className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 text-white font-bold py-6 rounded-2xl text-xl shadow-md transition-all"
-        >
-          📷 Tap to Scan
-        </button>
-        <input
-          ref={manualRef}
-          type="text"
-          placeholder="Or type / scan barcode + Enter"
-          onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
-          className="input"
-        />
-      </div>
+      <input
+        ref={manualRef}
+        type="text"
+        placeholder="Or type / scan barcode + Enter"
+        onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
+        className="input text-center"
+      />
 
       {status && (
-        <div className={`p-5 rounded-2xl text-center font-bold text-lg transition-all shadow-sm ${
-          status.type === 'success' ? 'bg-green-50 border-2 border-green-200 text-green-800' :
-          status.type === 'loading' ? 'bg-blue-50 border-2 border-blue-200 text-blue-700' :
-          'bg-red-50 border-2 border-red-200 text-red-700'
+        <div className={`p-5 rounded-2xl text-center transition-all ${
+          status.type === 'success' ? 'bg-white/10 border border-white/20' :
+          status.type === 'loading' ? 'bg-white/5' :
+          'bg-red-500/10 border border-red-500/20'
         }`}>
           {status.type === 'success' && (
             <>
-              <div className="text-3xl mb-1">✓</div>
-              <div>{status.msg}</div>
+              <div className="text-4xl mb-2">✓</div>
+              <div className="font-bold text-white text-lg">{status.msg}</div>
               <button
                 onClick={async () => { if (confirm(`Remove "${status.itemName}" from the system entirely?`)) { await deleteItem(status.itemId); setStatus(null) } }}
-                className="mt-2 text-xs text-red-500 underline font-normal"
-              >Remove from system</button>
+                className="mt-2 text-xs text-white/30 hover:text-red-400 transition-colors"
+              >
+                Remove from system
+              </button>
             </>
           )}
-          {status.type !== 'success' && status.msg}
+          {status.type === 'loading' && <div className="text-white/60">{status.msg}</div>}
+          {status.type === 'error' && <div className="text-red-400 font-medium">{status.msg}</div>}
         </div>
       )}
 
       {sessionLog.length > 0 && (
         <div className="card p-4">
-          <h2 className="font-semibold text-slate-500 text-xs uppercase tracking-wide mb-3">This Session — {sessionLog.length} scans</h2>
-          <ul className="divide-y divide-slate-50">
+          <div className="text-xs text-white/30 uppercase tracking-wider mb-3">This Session</div>
+          <ul className="divide-y divide-white/[0.04]">
             {sessionLog.map((entry, i) => (
               <li key={i} className="flex items-center justify-between py-2.5">
-                <div>
-                  <div className="font-semibold text-slate-800">{entry.itemName}</div>
-                  <div className="text-slate-400 text-xs">{entry.size}{entry.by ? ` · ${entry.by}` : ''}</div>
-                </div>
-                <div className="text-slate-400 text-xs">{entry.time}</div>
+                <div className="font-medium text-white/80">{entry.itemName}</div>
+                <div className="text-white/30 text-xs">{entry.time}</div>
               </li>
             ))}
           </ul>
