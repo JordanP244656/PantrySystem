@@ -8,7 +8,6 @@ export default function MassStockIn() {
   const [step, setStep] = useState('store')
   const [storeName, setStoreName] = useState('')
   const [customStore, setCustomStore] = useState('')
-  const [performer, setPerformer] = useState('')
   const [items, setItems] = useState([])
   const [showScanner, setShowScanner] = useState(false)
   const [lastScanned, setLastScanned] = useState(null)
@@ -50,7 +49,6 @@ export default function MassStockIn() {
       if (existing.length > 0) {
         item = existing[0]
         size = item.sizes.find(s => s.is_default) || item.sizes[0]
-        // Try to get image from cache
         lookupUPC(barcode, effectiveStore).then(p => {
           if (p?.image_url) setItems(prev => prev.map(i => i.item_id === item.id ? { ...i, image_url: p.image_url, purchase_url: p.purchase_url } : i))
         }).catch(() => {})
@@ -94,7 +92,7 @@ export default function MassStockIn() {
     try {
       await massStock({
         store_id: null,
-        performed_by: performer || null,
+        performed_by: null,
         notes: `Store: ${effectiveStore}`,
         items: items.map(({ item_id, item_size_id, quantity }) => ({ item_id, item_size_id, quantity, expiration_date: null })),
       })
@@ -108,70 +106,63 @@ export default function MassStockIn() {
   }
 
   if (step === 'done') return (
-    <div className="max-w-lg mx-auto text-center py-16 px-4 space-y-4">
+    <div className="max-w-lg mx-auto text-center py-20 px-4 space-y-3">
       <div className="text-7xl">✅</div>
-      <h2 className="text-3xl font-bold text-green-700">{items.length} items stocked!</h2>
-      <p className="text-slate-500">From {effectiveStore}</p>
+      <h2 className="text-3xl font-bold text-slate-800">{items.length} items stocked</h2>
+      <p className="text-slate-400">from {effectiveStore}</p>
       <button onClick={() => { setStep('store'); setItems([]); setStoreName(''); setLastScanned(null) }}
-        className="w-full btn-primary py-4 text-lg mt-4">
+        className="w-full btn-primary py-4 text-lg mt-6">
         Stock Another Load
       </button>
     </div>
   )
 
   if (step === 'store') return (
-    <div className="max-w-lg mx-auto space-y-4 px-2">
-      <div className="pt-2">
-        <h1 className="text-2xl font-bold text-slate-800">Stock</h1>
-        <p className="text-slate-500 text-sm">Select a store and scan items to add to inventory</p>
+    <div className="max-w-lg mx-auto px-2 pt-4 space-y-3">
+      <h1 className="text-2xl font-bold text-slate-800">Stock</h1>
+      <div className="grid grid-cols-3 gap-2">
+        {PRESET_STORES.map(s => (
+          <button key={s} onClick={() => { setStoreName(s); if (s !== 'Other') setStep('scanning') }}
+            className={`py-4 rounded-2xl border-2 font-semibold text-sm transition-all ${storeName === s ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-200 hover:border-green-300 text-slate-600 bg-white'}`}>
+            {s}
+          </button>
+        ))}
       </div>
-      <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-slate-700">Where did you shop?</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {PRESET_STORES.map(s => (
-            <button key={s} onClick={() => setStoreName(s)}
-              className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${storeName === s ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-200 hover:border-green-300 text-slate-600'}`}>
-              {s}
-            </button>
-          ))}
+      {storeName === 'Other' && (
+        <div className="flex gap-2">
+          <input type="text" placeholder="Store name" value={customStore} onChange={e => setCustomStore(e.target.value)}
+            className="input flex-1" autoFocus />
+          <button onClick={() => setStep('scanning')} disabled={!customStore}
+            className="btn-primary px-5 py-3 disabled:opacity-40">Go →</button>
         </div>
-        {storeName === 'Other' && (
-          <input type="text" placeholder="Store name" value={customStore} onChange={e => setCustomStore(e.target.value)} className="input" />
-        )}
-        <input type="text" value={performer} onChange={e => setPerformer(e.target.value)} placeholder="Who's stocking? (optional)" className="input" />
-        <button onClick={() => setStep('scanning')} disabled={!storeName || (storeName === 'Other' && !customStore)}
-          className="w-full btn-primary py-4 text-lg disabled:opacity-40">
-          Start Scanning →
-        </button>
-      </div>
+      )}
     </div>
   )
 
   return (
-    <div className="max-w-lg mx-auto space-y-4 px-2">
-      <div className="pt-2 flex items-start justify-between">
+    <div className="max-w-lg mx-auto space-y-3 px-2 pt-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Stocking — {effectiveStore}</h1>
-          <p className="text-slate-500 text-sm">{items.length} items · {items.reduce((s, i) => s + i.quantity, 0)} units total</p>
+          <h1 className="text-xl font-bold text-slate-800">{effectiveStore}</h1>
+          <p className="text-slate-400 text-sm">{items.length} items · {items.reduce((s, i) => s + i.quantity, 0)} units</p>
         </div>
         <button onClick={() => setShowReview(true)} disabled={items.length === 0}
-          className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm shadow">
+          className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-5 py-2.5 rounded-xl font-semibold text-sm">
           Done →
         </button>
       </div>
 
-      <div className="card p-4 space-y-2">
-        <button onClick={() => setShowScanner(true)} disabled={scanning}
-          className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 text-white font-bold py-6 rounded-2xl text-xl shadow-md">
-          {scanning ? '⏳ Looking up...' : '📷 Scan Item'}
-        </button>
-        <input ref={manualRef} type="text" placeholder="Or type / scan barcode + Enter"
-          onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
-          className="input" />
-      </div>
+      <button onClick={() => setShowScanner(true)} disabled={scanning}
+        className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 text-white font-bold py-7 rounded-2xl text-2xl shadow-md">
+        {scanning ? '⏳ Looking up...' : '📷 Scan Item'}
+      </button>
+
+      <input ref={manualRef} type="text" placeholder="Or type / scan barcode + Enter"
+        onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
+        className="input" />
 
       {lastScanned && (
-        <div className={`rounded-2xl p-4 flex items-center gap-3 transition-all ${
+        <div className={`rounded-2xl p-4 flex items-center gap-3 ${
           lastScanned.status === 'added' ? 'bg-green-50 border-2 border-green-200' :
           lastScanned.status === 'loading' ? 'bg-slate-50 border-2 border-slate-200' :
           'bg-red-50 border-2 border-red-200'
@@ -182,7 +173,7 @@ export default function MassStockIn() {
               <div className="font-bold text-green-800 text-lg">{lastScanned.itemName}</div>
               <div className="text-green-600 text-sm">×{lastScanned.quantity} in list</div>
             </>}
-            {lastScanned.status === 'loading' && <div className="text-slate-600 font-medium">Looking up barcode...</div>}
+            {lastScanned.status === 'loading' && <div className="text-slate-500 font-medium">Looking up...</div>}
             {lastScanned.status === 'error' && <div className="text-red-700 font-medium">{lastScanned.msg}</div>}
           </div>
         </div>
@@ -202,12 +193,12 @@ export default function MassStockIn() {
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
-                  className="w-7 h-7 rounded-full bg-slate-100 font-bold text-slate-600 text-sm flex items-center justify-center">−</button>
-                <span className="font-bold text-green-700 w-5 text-center text-sm">{item.quantity}</span>
+                  className="w-8 h-8 rounded-full bg-slate-100 font-bold text-slate-600 flex items-center justify-center">−</button>
+                <span className="font-bold text-green-700 w-6 text-center">{item.quantity}</span>
                 <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
-                  className="w-7 h-7 rounded-full bg-slate-100 font-bold text-slate-600 text-sm flex items-center justify-center">+</button>
+                  className="w-8 h-8 rounded-full bg-slate-100 font-bold text-slate-600 flex items-center justify-center">+</button>
                 <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                  className="w-7 h-7 rounded-full bg-red-50 text-red-400 flex items-center justify-center text-sm ml-1">✕</button>
+                  className="w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center ml-1">✕</button>
               </div>
             </div>
           ))}
@@ -219,21 +210,20 @@ export default function MassStockIn() {
       {showReview && (
         <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowReview(false)}>
           <div className="bg-white rounded-t-3xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-xl text-slate-800">Confirm Stock In</h2>
-            <p className="text-slate-500 text-sm">{items.length} items from {effectiveStore}</p>
+            <h2 className="font-bold text-xl text-slate-800">Submit Stock — {effectiveStore}</h2>
             {error && <div className="bg-red-100 text-red-700 p-3 rounded-xl text-sm">{error}</div>}
-            <div className="space-y-2 max-h-48 overflow-y-auto">
+            <div className="space-y-1 max-h-52 overflow-y-auto">
               {items.map((item, i) => (
-                <div key={i} className="flex justify-between text-sm py-1 border-b border-slate-50">
-                  <span className="font-medium text-slate-800">{item.itemName}</span>
+                <div key={i} className="flex justify-between text-sm py-1.5 border-b border-slate-50">
+                  <span className="text-slate-700">{item.itemName}</span>
                   <span className="font-bold text-green-700">×{item.quantity}</span>
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button onClick={() => setShowReview(false)} className="btn-secondary py-3">Back</button>
               <button onClick={submit} disabled={loading} className="btn-primary py-3 disabled:opacity-50">
-                {loading ? 'Saving...' : 'Submit All'}
+                {loading ? 'Saving...' : 'Submit'}
               </button>
             </div>
           </div>
