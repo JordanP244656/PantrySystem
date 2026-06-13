@@ -33,3 +33,8 @@ export const getUsageReport = (params) => api.get('/reports/usage', { params }).
 export const getThrowOutReport = (params) => api.get('/reports/throw-out', { params }).then(r => r.data)
 export const getExpiringReport = (params) => api.get('/reports/expiring', { params }).then(r => r.data)
 export const getTopUsed = (params) => api.get('/reports/top-used', { params }).then(r => r.data)
+
+export const getEmailSettings = () => api.get('/email/settings').then(r => r.data)
+export const saveEmailSettings = (data) => api.post('/email/settings', data).then(r => r.data)
+export const testEmail = () => api.post('/email/test').then(r => r.data)
+export const sendWeeklyNow = () => api.post('/email/send-weekly').then(r => r.data)

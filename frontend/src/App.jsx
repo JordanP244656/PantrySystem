@@ -1,10 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import Dashboard from './pages/Dashboard'
-import Inventory from './pages/Inventory'
 import ScanOut from './pages/ScanOut'
 import MassStockIn from './pages/MassStockIn'
-import Stores from './pages/Stores'
 import Reports from './pages/Reports'
 
 export default function App() {
@@ -14,11 +11,9 @@ export default function App() {
         <Navbar />
         <main className="max-w-7xl mx-auto px-3 py-4 pb-24 md:pb-6">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/" element={<Navigate to="/scan-out" replace />} />
             <Route path="/scan-out" element={<ScanOut />} />
-            <Route path="/mass-stock" element={<MassStockIn />} />
-            <Route path="/stores" element={<Stores />} />
+            <Route path="/stock" element={<MassStockIn />} />
             <Route path="/reports" element={<Reports />} />
           </Routes>
         </main>

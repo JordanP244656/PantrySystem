@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import datetime, date, timedelta
 from database import get_db
 from models import Item, ItemSize, StockBatch, Transaction, MassStockSession
+from email_service import send_email, build_stock_summary_email
 from schemas import (
     TransactionCreate, TransactionRead, ScanInCreate,
     MassStockSessionCreate, MassStockSessionRead,
@@ -119,6 +120,15 @@ def mass_stock(data: MassStockSessionCreate, db: Session = Depends(get_db)):
         db.add(tx)
     db.commit()
     db.refresh(session)
+    # Email summary if 10+ items
+    if len(data.items) >= 10:
+        store_name = data.notes.replace("Store: ", "") if data.notes and data.notes.startswith("Store: ") else "Unknown Store"
+        email_items = []
+        for entry in data.items:
+            item = db.query(Item).filter(Item.id == entry.item_id).first()
+            email_items.append({"name": item.name if item else f"Item #{entry.item_id}", "qty": entry.quantity})
+        subject, body = build_stock_summary_email(store_name, email_items)
+        send_email(subject, body)
     return session
 
 

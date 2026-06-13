@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { getUsageReport, getThrowOutReport, getExpiringReport, getTopUsed } from '../api'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { getUsageReport, getThrowOutReport, getTopUsed, getEmailSettings, saveEmailSettings, testEmail, sendWeeklyNow } from '../api'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { format } from 'date-fns'
 
-const TABS = ['Usage', 'Top Used', 'Throw Outs', 'Expiring']
+const TABS = ['Usage', 'Top Used', 'Throw Outs', 'Email']
 const DAY_OPTIONS = [7, 14, 30, 90]
 
 export default function Reports() {
@@ -12,18 +12,12 @@ export default function Reports() {
   const [usageData, setUsageData] = useState([])
   const [topUsed, setTopUsed] = useState([])
   const [throwOuts, setThrowOuts] = useState([])
-  const [expiring, setExpiring] = useState([])
-  const [expiryDays, setExpiryDays] = useState(14)
 
   useEffect(() => {
     getUsageReport({ days }).then(setUsageData)
     getTopUsed({ days, n: 10 }).then(setTopUsed)
     getThrowOutReport({ days }).then(setThrowOuts)
   }, [days])
-
-  useEffect(() => {
-    getExpiringReport({ days: expiryDays }).then(setExpiring)
-  }, [expiryDays])
 
   const chartData = (() => {
     const byDate = {}
@@ -41,7 +35,7 @@ export default function Reports() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Reports</h1>
-        {tab !== 'Expiring' && (
+        {tab !== 'Email' && (
           <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
             {DAY_OPTIONS.map(d => (
               <button key={d} onClick={() => setDays(d)}
@@ -121,17 +115,15 @@ export default function Reports() {
           {throwOuts.length === 0 ? <Empty msg="No throw-outs recorded." /> : (
             <table className="w-full text-sm">
               <thead><tr className="text-left text-slate-500 border-b text-xs">
-                <th className="pb-2 pr-4">Item</th><th className="pb-2 pr-4">Size</th><th className="pb-2 pr-4">Qty</th>
-                <th className="pb-2 pr-4">By</th><th className="pb-2 pr-4">Notes</th><th className="pb-2">Date</th>
+                <th className="pb-2 pr-4">Item</th><th className="pb-2 pr-4">Qty</th>
+                <th className="pb-2 pr-4">By</th><th className="pb-2">Date</th>
               </tr></thead>
               <tbody>
                 {throwOuts.map(r => (
                   <tr key={r.id} className="border-b border-slate-50">
                     <td className="py-2 pr-4 font-medium">{r.item_name}</td>
-                    <td className="py-2 pr-4 text-slate-500">{r.size_label}</td>
                     <td className="py-2 pr-4 text-red-600 font-medium">{r.quantity}</td>
                     <td className="py-2 pr-4 text-slate-500">{r.performed_by || '—'}</td>
-                    <td className="py-2 pr-4 text-slate-400 text-xs">{r.notes || '—'}</td>
                     <td className="py-2 text-slate-400 text-xs">{format(new Date(r.date), 'MMM d, yyyy')}</td>
                   </tr>
                 ))}
@@ -141,42 +133,94 @@ export default function Reports() {
         </div>
       )}
 
-      {tab === 'Expiring' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-slate-700">Expiring Stock</h2>
-            <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-              {[7, 14, 30].map(d => (
-                <button key={d} onClick={() => setExpiryDays(d)}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${expiryDays === d ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>
-                  {d}d
-                </button>
-              ))}
-            </div>
-          </div>
-          {expiring.length === 0 ? <Empty msg="Nothing expiring in this window." /> : (
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-slate-500 border-b text-xs">
-                <th className="pb-2 pr-4">Item</th><th className="pb-2 pr-4">Size</th>
-                <th className="pb-2 pr-4">Qty</th><th className="pb-2 pr-4">Expires</th><th className="pb-2">Days Left</th>
-              </tr></thead>
-              <tbody>
-                {expiring.map(r => (
-                  <tr key={r.batch_id} className="border-b border-slate-50">
-                    <td className="py-2 pr-4 font-medium">{r.item_name}</td>
-                    <td className="py-2 pr-4 text-slate-500">{r.size_label}</td>
-                    <td className="py-2 pr-4">{r.quantity_remaining}</td>
-                    <td className="py-2 pr-4">{r.expiration_date}</td>
-                    <td className={`py-2 font-bold ${r.days_until_expiry <= 0 ? 'text-red-600' : r.days_until_expiry <= 3 ? 'text-orange-600' : 'text-yellow-600'}`}>
-                      {r.days_until_expiry <= 0 ? 'EXPIRED' : `${r.days_until_expiry}d`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {tab === 'Email' && <EmailSettings />}
+    </div>
+  )
+}
+
+function EmailSettings() {
+  const [form, setForm] = useState({ enabled: false, to_email: '', smtp_user: '', smtp_password: '' })
+  const [saved, setSaved] = useState(false)
+  const [testStatus, setTestStatus] = useState(null)
+  const [weeklyStatus, setWeeklyStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    getEmailSettings().then(s => setForm(f => ({ ...f, ...s })))
+  }, [])
+
+  const save = async () => {
+    setLoading(true)
+    await saveEmailSettings(form)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    setLoading(false)
+  }
+
+  const doTest = async () => {
+    setTestStatus('sending...')
+    const r = await testEmail()
+    setTestStatus(r.ok ? '✓ Sent! Check your inbox.' : `✗ ${r.message}`)
+  }
+
+  const doWeekly = async () => {
+    setWeeklyStatus('sending...')
+    const r = await sendWeeklyNow()
+    setWeeklyStatus(r.ok ? '✓ Weekly report sent!' : `✗ ${r.message}`)
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5 max-w-lg space-y-5">
+      <div>
+        <h2 className="font-bold text-slate-800 text-lg">Email Notifications</h2>
+        <p className="text-slate-500 text-sm mt-1">Weekly low stock report every Monday. Email after any stock load of 10+ items.</p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button onClick={() => setForm(f => ({ ...f, enabled: !f.enabled }))}
+          className={`w-12 h-6 rounded-full transition-colors ${form.enabled ? 'bg-blue-600' : 'bg-slate-300'}`}>
+          <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.enabled ? 'translate-x-6' : ''}`} />
+        </button>
+        <span className="font-medium text-slate-700">{form.enabled ? 'Enabled' : 'Disabled'}</span>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Send reports to</label>
+          <input type="email" value={form.to_email} onChange={e => setForm(f => ({ ...f, to_email: e.target.value }))}
+            placeholder="you@email.com"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-      )}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Gmail address (sends from)</label>
+          <input type="email" value={form.smtp_user} onChange={e => setForm(f => ({ ...f, smtp_user: e.target.value }))}
+            placeholder="yourgmail@gmail.com"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Gmail App Password</label>
+          <input type="password" value={form.smtp_password} onChange={e => setForm(f => ({ ...f, smtp_password: e.target.value }))}
+            placeholder="xxxx xxxx xxxx xxxx"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <p className="text-xs text-slate-400 mt-1">Need an App Password? Go to Google Account → Security → 2-Step Verification → App Passwords</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={save} disabled={loading}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+          {saved ? '✓ Saved' : 'Save Settings'}
+        </button>
+        <button onClick={doTest} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
+          Send Test Email
+        </button>
+        <button onClick={doWeekly} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
+          Send Weekly Now
+        </button>
+      </div>
+
+      {testStatus && <p className={`text-sm font-medium ${testStatus.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{testStatus}</p>}
+      {weeklyStatus && <p className={`text-sm font-medium ${weeklyStatus.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{weeklyStatus}</p>}
     </div>
   )
 }
