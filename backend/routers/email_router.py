@@ -14,8 +14,7 @@ router = APIRouter()
 class EmailSettings(BaseModel):
     enabled: bool = False
     to_email: str = ""
-    smtp_user: str = ""
-    smtp_password: str = ""
+    from_email: str = "pantryupdates@playsbot.cc"
 
 
 @router.get("/email/settings")
@@ -24,19 +23,16 @@ def get_email_settings():
     return {
         "enabled": s.get("enabled", False),
         "to_email": s.get("to_email", ""),
-        "smtp_user": s.get("smtp_user", ""),
-        "smtp_password": "***" if s.get("smtp_password") else "",
+        "from_email": s.get("from_email", "pantryupdates@playsbot.cc"),
     }
 
 
 @router.post("/email/settings")
 def update_email_settings(data: EmailSettings):
-    existing = load_settings()
     settings = {
         "enabled": data.enabled,
         "to_email": data.to_email,
-        "smtp_user": data.smtp_user,
-        "smtp_password": data.smtp_password if data.smtp_password != "***" else existing.get("smtp_password", ""),
+        "from_email": data.from_email,
     }
     save_settings(settings)
     return {"ok": True}

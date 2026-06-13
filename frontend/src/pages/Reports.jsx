@@ -139,7 +139,7 @@ export default function Reports() {
 }
 
 function EmailSettings() {
-  const [form, setForm] = useState({ enabled: false, to_email: '', smtp_user: '', smtp_password: '' })
+  const [form, setForm] = useState({ enabled: false, to_email: '', from_email: 'pantryupdates@playsbot.cc' })
   const [saved, setSaved] = useState(false)
   const [testStatus, setTestStatus] = useState(null)
   const [weeklyStatus, setWeeklyStatus] = useState(null)
@@ -192,17 +192,10 @@ function EmailSettings() {
             className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Gmail address (sends from)</label>
-          <input type="email" value={form.smtp_user} onChange={e => setForm(f => ({ ...f, smtp_user: e.target.value }))}
-            placeholder="yourgmail@gmail.com"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Gmail App Password</label>
-          <input type="password" value={form.smtp_password} onChange={e => setForm(f => ({ ...f, smtp_password: e.target.value }))}
-            placeholder="xxxx xxxx xxxx xxxx"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <p className="text-xs text-slate-400 mt-1">Need an App Password? Go to Google Account → Security → 2-Step Verification → App Passwords</p>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Send from</label>
+          <input type="email" value={form.from_email} onChange={e => setForm(f => ({ ...f, from_email: e.target.value }))}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+          <p className="text-xs text-slate-400 mt-1">Using Resend — set your RESEND_API_KEY in the .env file</p>
         </div>
       </div>
 
