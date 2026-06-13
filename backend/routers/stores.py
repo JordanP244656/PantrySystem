@@ -18,7 +18,7 @@ def create_store(data: StoreCreate, db: Session = Depends(get_db)):
     existing = db.query(Store).filter(Store.name == data.name).first()
     if existing:
         raise HTTPException(400, "Store with this name already exists")
-    store = Store(**data.model_dump())
+    store = Store(**data.dict())
     db.add(store)
     db.commit()
     db.refresh(store)
@@ -38,7 +38,7 @@ def update_store(store_id: int, data: StoreUpdate, db: Session = Depends(get_db)
     store = db.query(Store).filter(Store.id == store_id).first()
     if not store:
         raise HTTPException(404, "Store not found")
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in data.dict(exclude_none=True).items():
         setattr(store, field, value)
     db.commit()
     db.refresh(store)
@@ -71,7 +71,7 @@ def add_store_item_link(store_id: int, data: StoreItemLinkCreate, db: Session = 
     item = db.query(Item).filter(Item.id == data.item_id).first()
     if not item:
         raise HTTPException(404, "Item not found")
-    link = StoreItemLink(store_id=store_id, **data.model_dump())
+    link = StoreItemLink(store_id=store_id, **data.dict())
     db.add(link)
     db.commit()
     db.refresh(link)
@@ -83,7 +83,7 @@ def update_store_item_link(store_id: int, link_id: int, data: StoreItemLinkUpdat
     link = db.query(StoreItemLink).filter(StoreItemLink.id == link_id, StoreItemLink.store_id == store_id).first()
     if not link:
         raise HTTPException(404, "Link not found")
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in data.dict(exclude_none=True).items():
         setattr(link, field, value)
     db.commit()
     db.refresh(link)

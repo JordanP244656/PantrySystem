@@ -48,7 +48,7 @@ def update_item(item_id: int, data: ItemUpdate, db: Session = Depends(get_db)):
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
         raise HTTPException(404, "Item not found")
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in data.dict(exclude_none=True).items():
         setattr(item, field, value)
     db.commit()
     db.refresh(item)

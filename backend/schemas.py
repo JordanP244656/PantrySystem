@@ -13,7 +13,8 @@ class ItemSizeRead(BaseModel):
     size_label: str
     unit_count: int
     is_default: bool
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 class ItemCreate(BaseModel):
     name: str
@@ -36,7 +37,8 @@ class ItemRead(BaseModel):
     description: Optional[str]
     created_at: datetime
     sizes: List[ItemSizeRead] = []
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class StoreCreate(BaseModel):
@@ -55,7 +57,8 @@ class StoreRead(BaseModel):
     website_url: Optional[str]
     notes: Optional[str]
     created_at: datetime
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class StoreItemLinkCreate(BaseModel):
@@ -80,7 +83,8 @@ class StoreItemLinkRead(BaseModel):
     price: Optional[float]
     item: Optional[ItemRead] = None
     item_size: Optional[ItemSizeRead] = None
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class StockBatchCreate(BaseModel):
@@ -101,7 +105,8 @@ class StockBatchRead(BaseModel):
     expiration_date: Optional[date]
     received_at: datetime
     notes: Optional[str]
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class TransactionCreate(BaseModel):
@@ -133,7 +138,8 @@ class TransactionRead(BaseModel):
     created_at: datetime
     item: Optional[ItemRead] = None
     item_size: Optional[ItemSizeRead] = None
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class MassStockItem(BaseModel):
@@ -154,7 +160,8 @@ class MassStockSessionRead(BaseModel):
     performed_by: Optional[str]
     notes: Optional[str]
     created_at: datetime
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class CurrentStockItem(BaseModel):
