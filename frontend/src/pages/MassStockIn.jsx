@@ -5,7 +5,7 @@ import BarcodeScanner from '../components/BarcodeScanner'
 const PRESET_STORES = ['Costco', 'Target', 'ShopRite', 'Walmart', 'Whole Foods', 'Other']
 
 export default function MassStockIn() {
-  const [step, setStep] = useState('store')
+  const [step, setStep] = useState('idle')
   const [storeName, setStoreName] = useState('')
   const [customStore, setCustomStore] = useState('')
   const [items, setItems] = useState([])
@@ -101,28 +101,17 @@ export default function MassStockIn() {
     <div className="max-w-lg mx-auto text-center py-20 px-4 space-y-2">
       <div className="text-7xl">✅</div>
       <h2 className="text-3xl font-bold text-white">{items.length} items stocked</h2>
-      <p className="text-white/40">from {effectiveStore}</p>
-      <button onClick={() => { setStep('store'); setItems([]); setStoreName(''); setLastScanned(null) }}
+      <button onClick={() => { setStep('idle'); setItems([]); setLastScanned(null) }}
         className="w-full btn-primary py-4 text-lg mt-6">Stock Another Load</button>
     </div>
   )
 
-  if (step === 'store') return (
-    <div className="max-w-lg mx-auto px-3 pt-5 pb-28 space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        {PRESET_STORES.map(s => (
-          <button key={s} onClick={() => { setStoreName(s); if (s !== 'Other') setStep('scanning') }}
-            className={`py-5 rounded-2xl border font-semibold text-sm transition-all ${storeName === s ? 'border-white bg-white text-black' : 'border-white/10 bg-white/[0.04] hover:bg-white/10 text-white/70'}`}>
-            {s}
-          </button>
-        ))}
-      </div>
-      {storeName === 'Other' && (
-        <div className="flex gap-2">
-          <input type="text" placeholder="Store name" value={customStore} onChange={e => setCustomStore(e.target.value)} className="input flex-1" autoFocus />
-          <button onClick={() => setStep('scanning')} disabled={!customStore} className="btn-primary px-5 py-3 disabled:opacity-40">Go →</button>
-        </div>
-      )}
+  if (step === 'idle') return (
+    <div className="max-w-lg mx-auto px-3 pt-5 pb-28">
+      <button onClick={() => setStep('scanning')}
+        className="w-full bg-white hover:bg-white/90 active:bg-white/80 text-black font-bold py-10 rounded-3xl text-2xl transition-all">
+        🛒 Start Restock
+      </button>
     </div>
   )
 
