@@ -7,6 +7,7 @@ export default function ScanOut() {
   const [showScanner, setShowScanner] = useState(false)
   const [status, setStatus] = useState(null)
   const [processing, setProcessing] = useState(false)
+  const [qtyPicker, setQtyPicker] = useState(null)
   const barcodeBuffer = useRef('')
   const barcodeTimer = useRef(null)
   const manualRef = useRef(null)
@@ -47,15 +48,30 @@ export default function ScanOut() {
         setProcessing(false)
         return
       }
-      await scanOut({ item_id: item.id, item_size_id: size.id, quantity: 1, performed_by: null })
-      setSessionLog(prev => [{ itemName: item.name, itemId: item.id, size: size.size_label, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 19)])
+      if (size.unit_count > 1) {
+        setStatus(null)
+        setQtyPicker({ item, size })
+        setProcessing(false)
+        return
+      }
+      await doScanOut(item, size, 1)
+    } catch (e) {
+      setStatus({ type: 'error', msg: e.response?.data?.detail || 'Error — not enough stock?' })
+      setTimeout(() => setStatus(null), 3000)
+    }
+    setProcessing(false)
+  }
+
+  const doScanOut = async (item, size, quantity) => {
+    try {
+      await scanOut({ item_id: item.id, item_size_id: size.id, quantity, performed_by: null })
+      setSessionLog(prev => [{ itemName: item.name, itemId: item.id, size: size.size_label, quantity, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 19)])
       setStatus({ type: 'success', msg: item.name, itemId: item.id, itemName: item.name })
       setTimeout(() => setStatus(null), 4000)
     } catch (e) {
       setStatus({ type: 'error', msg: e.response?.data?.detail || 'Error — not enough stock?' })
       setTimeout(() => setStatus(null), 3000)
     }
-    setProcessing(false)
   }
 
   return (
@@ -105,7 +121,10 @@ export default function ScanOut() {
           <ul className="divide-y divide-white/[0.04]">
             {sessionLog.map((entry, i) => (
               <li key={i} className="flex items-center justify-between py-2.5">
-                <div className="font-medium text-white/80">{entry.itemName}</div>
+                <div>
+                  <div className="font-medium text-white/80 text-sm">{entry.itemName}</div>
+                  {entry.quantity > 1 && <div className="text-white/30 text-xs">×{entry.quantity} units</div>}
+                </div>
                 <div className="text-white/30 text-xs">{entry.time}</div>
               </li>
             ))}
@@ -116,6 +135,52 @@ export default function ScanOut() {
       {showScanner && (
         <BarcodeScanner onDetected={(b) => { setShowScanner(false); handleBarcode(b) }} onClose={() => setShowScanner(false)} />
       )}
+
+      {qtyPicker && (
+        <QtyPickerModal
+          item={qtyPicker.item}
+          size={qtyPicker.size}
+          onConfirm={async (qty) => {
+            const pick = qtyPicker
+            setQtyPicker(null)
+            setProcessing(true)
+            await doScanOut(pick.item, pick.size, qty)
+            setProcessing(false)
+          }}
+          onClose={() => setQtyPicker(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function QtyPickerModal({ item, size, onConfirm, onClose }) {
+  const options = Array.from({ length: size.unit_count }, (_, i) => i + 1)
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-end z-50" onClick={onClose}>
+      <div className="bg-[#141414] border-t border-white/10 rounded-t-3xl w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <h2 className="font-bold text-xl text-white">{item.name}</h2>
+          <p className="text-white/40 text-sm mt-0.5">{size.size_label} · Pack of {size.unit_count} — how many are you taking?</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {options.map(n => (
+            <button
+              key={n}
+              onClick={() => onConfirm(n)}
+              className={`py-4 rounded-2xl font-bold text-lg transition-all border ${
+                n === size.unit_count
+                  ? 'bg-white text-black border-white'
+                  : 'border-white/10 bg-white/[0.04] text-white hover:bg-white/10'
+              }`}
+            >
+              {n === size.unit_count ? `All ${n}` : n}
+            </button>
+          ))}
+        </div>
+        <button onClick={onClose} className="w-full btn-secondary py-3">Cancel</button>
+      </div>
     </div>
   )
 }
