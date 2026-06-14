@@ -23,20 +23,23 @@ def save_settings(settings: dict):
 
 def send_email(subject: str, body: str):
     s = load_settings()
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    to_email = s.get("to_email", "")
+    api_key = s.get("resend_api_key") or os.environ.get("RESEND_API_KEY", "")
+    to_emails = s.get("to_emails", [])
+    # backwards compat
+    if not to_emails and s.get("to_email"):
+        to_emails = [s["to_email"]]
     from_email = s.get("from_email", "pantryupdates@playsbot.cc")
 
     if not api_key:
-        return False, "RESEND_API_KEY not set in .env file"
-    if not to_email:
-        return False, "No recipient email configured"
+        return False, "Resend API key not set — add it in Reports → Email"
+    if not to_emails:
+        return False, "No recipient emails configured"
 
     try:
         resend.api_key = api_key
         resend.Emails.send({
             "from": f"Pollack Family Pantry <{from_email}>",
-            "to": [to_email],
+            "to": to_emails,
             "subject": subject,
             "html": body,
         })

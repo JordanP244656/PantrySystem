@@ -125,34 +125,48 @@ export default function Reports() {
 }
 
 function EmailSettings() {
-  const [form, setForm] = useState({ enabled: false, to_email: '', from_email: 'pantryupdates@playsbot.cc' })
+  const [form, setForm] = useState({ enabled: false, to_emails: [], from_email: 'pantryupdates@playsbot.cc', resend_api_key: '' })
+  const [apiKeySet, setApiKeySet] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
   const [saved, setSaved] = useState(false)
   const [testStatus, setTestStatus] = useState(null)
   const [weeklyStatus, setWeeklyStatus] = useState(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    getEmailSettings().then(s => setForm(f => ({ ...f, ...s })))
+    getEmailSettings().then(s => {
+      setForm(f => ({ ...f, enabled: s.enabled, to_emails: s.to_emails || [], from_email: s.from_email }))
+      setApiKeySet(s.api_key_set)
+    })
   }, [])
 
   const save = async () => {
     setLoading(true)
     await saveEmailSettings(form)
+    if (form.resend_api_key) setApiKeySet(true)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
     setLoading(false)
   }
 
+  const addEmail = () => {
+    if (!newEmail || form.to_emails.includes(newEmail)) return
+    setForm(f => ({ ...f, to_emails: [...f.to_emails, newEmail] }))
+    setNewEmail('')
+  }
+
+  const removeEmail = (email) => setForm(f => ({ ...f, to_emails: f.to_emails.filter(e => e !== email) }))
+
   const doTest = async () => {
     setTestStatus('sending...')
     const r = await testEmail()
-    setTestStatus(r.ok ? '✓ Sent! Check your inbox.' : `✗ ${r.message}`)
+    setTestStatus(r.ok ? '✓ Sent!' : `✗ ${r.message}`)
   }
 
   const doWeekly = async () => {
     setWeeklyStatus('sending...')
     const r = await sendWeeklyNow()
-    setWeeklyStatus(r.ok ? '✓ Weekly report sent!' : `✗ ${r.message}`)
+    setWeeklyStatus(r.ok ? '✓ Sent!' : `✗ ${r.message}`)
   }
 
   return (
@@ -167,12 +181,41 @@ function EmailSettings() {
         <div className={`absolute top-0.5 w-5 h-5 rounded-full shadow transition-all ${form.enabled ? 'bg-black left-6' : 'bg-white/60 left-0.5'}`} />
       </button>
 
-      <div className="space-y-3">
-        <input type="email" value={form.to_email} onChange={e => setForm(f => ({ ...f, to_email: e.target.value }))}
-          placeholder="Send reports to (your email)" className="input" />
-        <input type="email" value={form.from_email} onChange={e => setForm(f => ({ ...f, from_email: e.target.value }))}
+      {/* API Key */}
+      <div className="space-y-1">
+        <p className="text-white/40 text-xs uppercase tracking-wider">Resend API Key</p>
+        <div className="flex gap-2">
+          <input type="password" value={form.resend_api_key}
+            onChange={e => setForm(f => ({ ...f, resend_api_key: e.target.value }))}
+            placeholder={apiKeySet ? '●●●●●●●● (already set)' : 'Paste your Resend API key'}
+            className="input flex-1" />
+        </div>
+        {apiKeySet && !form.resend_api_key && <p className="text-green-400 text-xs">✓ API key is configured</p>}
+      </div>
+
+      {/* From email */}
+      <div className="space-y-1">
+        <p className="text-white/40 text-xs uppercase tracking-wider">Send From</p>
+        <input type="email" value={form.from_email}
+          onChange={e => setForm(f => ({ ...f, from_email: e.target.value }))}
           className="input" />
-        <p className="text-white/20 text-xs">Requires RESEND_API_KEY in backend/.env</p>
+      </div>
+
+      {/* Recipients */}
+      <div className="space-y-2">
+        <p className="text-white/40 text-xs uppercase tracking-wider">Recipients</p>
+        {form.to_emails.map(email => (
+          <div key={email} className="flex items-center justify-between bg-white/[0.04] border border-white/[0.06] rounded-xl px-4 py-2.5">
+            <span className="text-white/80 text-sm">{email}</span>
+            <button onClick={() => removeEmail(email)} className="text-white/20 hover:text-red-400 text-lg leading-none">✕</button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addEmail()}
+            placeholder="Add email address" className="input flex-1" />
+          <button onClick={addEmail} className="btn-primary px-4 py-2 text-sm">Add</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2">

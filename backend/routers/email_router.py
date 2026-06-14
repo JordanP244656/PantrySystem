@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
+import os
 from database import get_db
 from models import Item, Transaction, StockBatch
 from email_service import load_settings, save_settings, send_email, build_weekly_report_email
@@ -11,29 +12,41 @@ from datetime import datetime, timedelta
 router = APIRouter()
 
 
+from typing import List
+
 class EmailSettings(BaseModel):
     enabled: bool = False
-    to_email: str = ""
+    to_emails: List[str] = []
     from_email: str = "pantryupdates@playsbot.cc"
+    resend_api_key: Optional[str] = None
 
 
 @router.get("/email/settings")
 def get_email_settings():
     s = load_settings()
+    to_emails = s.get("to_emails", [])
+    if not to_emails and s.get("to_email"):
+        to_emails = [s["to_email"]]
+    api_key = s.get("resend_api_key") or os.environ.get("RESEND_API_KEY", "")
     return {
         "enabled": s.get("enabled", False),
-        "to_email": s.get("to_email", ""),
+        "to_emails": to_emails,
         "from_email": s.get("from_email", "pantryupdates@playsbot.cc"),
+        "api_key_set": bool(api_key),
     }
 
 
 @router.post("/email/settings")
 def update_email_settings(data: EmailSettings):
+    s = load_settings()
     settings = {
+        **s,
         "enabled": data.enabled,
-        "to_email": data.to_email,
+        "to_emails": data.to_emails,
         "from_email": data.from_email,
     }
+    if data.resend_api_key:
+        settings["resend_api_key"] = data.resend_api_key
     save_settings(settings)
     return {"ok": True}
 
