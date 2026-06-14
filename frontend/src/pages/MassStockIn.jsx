@@ -162,12 +162,12 @@ export default function MassStockIn() {
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
-                className="w-9 h-9 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-lg">−</button>
+                className="w-12 h-12 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-xl">−</button>
               <span className="font-bold text-white w-6 text-center">{item.quantity}</span>
               <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
-                className="w-9 h-9 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-lg">+</button>
+                className="w-12 h-12 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-xl">+</button>
               <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                className="w-9 h-9 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1">✕</button>
+                className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1 text-xl">✕</button>
             </div>
           </div>
         ))}
