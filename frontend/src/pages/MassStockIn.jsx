@@ -2,12 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { massStock, lookupUPC, getItems, createItem } from '../api'
 import BarcodeScanner from '../components/BarcodeScanner'
 
-const PRESET_STORES = ['Costco', 'Target', 'ShopRite', 'Walmart', 'Whole Foods', 'Other']
-
 export default function MassStockIn() {
   const [step, setStep] = useState('idle')
-  const [storeName, setStoreName] = useState('')
-  const [customStore, setCustomStore] = useState('')
   const [items, setItems] = useState([])
   const [showScanner, setShowScanner] = useState(false)
   const [lastScanned, setLastScanned] = useState(null)
@@ -20,8 +16,6 @@ export default function MassStockIn() {
   const barcodeBuffer = useRef('')
   const barcodeTimer = useRef(null)
   const manualRef = useRef(null)
-
-  const effectiveStore = storeName === 'Other' ? customStore : storeName
 
   useEffect(() => {
     if (step !== 'scanning') return
@@ -46,15 +40,15 @@ export default function MassStockIn() {
     setLastScanned({ status: 'loading' })
     try {
       const existing = await getItems(barcode)
-      let item, size, image_url = null, purchase_url = null
+      let item, size, image_url = null
       if (existing.length > 0) {
         item = existing[0]
         size = item.sizes.find(s => s.is_default) || item.sizes[0]
-        lookupUPC(barcode, effectiveStore).then(p => {
+        lookupUPC(barcode).then(p => {
           if (p?.image_url) setItems(prev => prev.map(i => i.item_id === item.id ? { ...i, image_url: p.image_url } : i))
         }).catch(() => {})
       } else {
-        const product = await lookupUPC(barcode, effectiveStore)
+        const product = await lookupUPC(barcode)
         image_url = product.image_url
         try {
           item = await createItem({ name: product.name, barcode, category: product.category || '', sizes: [{ size_label: product.size || 'Each', unit_count: 1, is_default: true }] })
@@ -88,8 +82,7 @@ export default function MassStockIn() {
     setLoading(true); setError(null)
     try {
       await massStock({
-        store_id: null, performed_by: null,
-        notes: `Store: ${effectiveStore}`,
+        store_id: null, performed_by: null, notes: '',
         items: items.map(({ item_id, item_size_id, quantity }) => ({ item_id, item_size_id, quantity, expiration_date: null })),
       })
       setStep('done'); setShowReview(false)
@@ -98,88 +91,87 @@ export default function MassStockIn() {
   }
 
   if (step === 'done') return (
-    <div className="max-w-lg mx-auto text-center py-20 px-4 space-y-2">
-      <div className="text-7xl">✅</div>
-      <h2 className="text-3xl font-bold text-white">{items.length} items stocked</h2>
+    <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+      <div className="text-8xl">✅</div>
+      <h2 className="text-4xl font-bold text-white">{items.length} items stocked</h2>
       <button onClick={() => { setStep('idle'); setItems([]); setLastScanned(null) }}
-        className="w-full btn-primary py-4 text-lg mt-6">Stock Another Load</button>
+        className="btn-primary px-10 py-5 text-2xl mt-4">Stock Another Load</button>
     </div>
   )
 
   if (step === 'idle') return (
-    <div className="max-w-lg mx-auto px-3 pt-5 pb-28">
+    <div className="h-full flex items-center justify-center p-4">
       <button onClick={() => setStep('scanning')}
-        className="w-full bg-white hover:bg-white/90 active:bg-white/80 text-black font-bold py-10 rounded-3xl text-2xl transition-all">
+        className="w-full h-full bg-white hover:bg-white/90 active:bg-white/80 text-black font-bold rounded-3xl text-4xl transition-all">
         🛒 Start Restock
       </button>
     </div>
   )
 
   return (
-    <div className="max-w-lg mx-auto space-y-3 px-3 pt-5 pb-28">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <p className="text-white/40 text-sm">{effectiveStore} · {items.length} items</p>
+    <div className="h-full flex gap-4">
+      {/* Left: scan controls */}
+      <div className="flex flex-col gap-3 w-64 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <span className="text-white/40 text-sm">{items.length} items</span>
+          <button onClick={() => setShowReview(true)} disabled={items.length === 0}
+            className="btn-primary px-4 py-2 text-sm disabled:opacity-30">Done →</button>
         </div>
-        <button onClick={() => setShowReview(true)} disabled={items.length === 0}
-          className="btn-primary px-5 py-2 text-sm disabled:opacity-30">Done →</button>
-      </div>
 
-      <button onClick={() => setShowScanner(true)} disabled={scanning}
-        className="scan-btn w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all">
-        {scanning ? '⏳ Looking up...' : '📷 Scan Item'}
-      </button>
+        <button onClick={() => setShowScanner(true)} disabled={scanning}
+          className="flex-1 bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold rounded-3xl text-2xl transition-all">
+          {scanning ? '⏳' : '📷 Scan'}
+        </button>
 
-      <input ref={manualRef} type="text" placeholder="Or type / scan barcode + Enter"
-        onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
-        className="input text-center" />
+        <input ref={manualRef} type="text" placeholder="Barcode + Enter"
+          onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
+          className="input text-center" />
 
-      {lastScanned && (
-        <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
-          lastScanned.status === 'added' ? 'bg-white/5 border-white/10' :
-          lastScanned.status === 'loading' ? 'bg-white/[0.03] border-white/5' :
-          'bg-red-500/10 border-red-500/20'}`}>
-          {lastScanned.image_url && <img src={lastScanned.image_url} alt="" className="w-12 h-12 object-contain rounded-xl bg-white/5 flex-shrink-0" />}
-          <div className="flex-1">
+        {lastScanned && (
+          <div className={`rounded-2xl p-3 border ${
+            lastScanned.status === 'added' ? 'bg-white/5 border-white/10' :
+            lastScanned.status === 'loading' ? 'bg-white/[0.03] border-white/5' :
+            'bg-red-500/10 border-red-500/20'}`}>
             {lastScanned.status === 'added' && <>
-              <div className="font-semibold text-white">{lastScanned.itemName}</div>
-              <div className="text-white/40 text-sm">×{lastScanned.quantity} in list</div>
+              <div className="font-semibold text-white text-sm truncate">{lastScanned.itemName}</div>
+              <div className="text-white/40 text-xs">×{lastScanned.quantity} in list</div>
             </>}
-            {lastScanned.status === 'loading' && <div className="text-white/40">Looking up...</div>}
+            {lastScanned.status === 'loading' && <div className="text-white/40 text-sm">Looking up...</div>}
             {lastScanned.status === 'error' && (
               <div className="flex items-center justify-between">
-                <div className="text-red-400">Not found</div>
-                <button onClick={() => setShowManualAdd(true)} className="bg-white text-black text-xs px-3 py-1.5 rounded-lg font-semibold">+ Add Manually</button>
+                <div className="text-red-400 text-sm">Not found</div>
+                <button onClick={() => setShowManualAdd(true)} className="bg-white text-black text-xs px-2 py-1 rounded-lg font-semibold">+ Add</button>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {items.length > 0 && (
-        <div className="card overflow-hidden">
-          {items.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 border-b border-white/[0.04] last:border-0">
-              {item.image_url
-                ? <img src={item.image_url} alt="" className="w-10 h-10 object-contain rounded-lg bg-white/5 flex-shrink-0" />
-                : <div className="w-10 h-10 rounded-lg bg-white/5 flex-shrink-0 flex items-center justify-center text-white/20">📦</div>}
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-white/90 truncate text-sm">{item.itemName}</div>
-                <div className="text-white/30 text-xs">{item.sizeLabel}</div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
-                  className="qty-btn w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">−</button>
-                <span className="font-bold text-white w-5 text-center text-sm">{item.quantity}</span>
-                <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
-                  className="qty-btn w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">+</button>
-                <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                  className="w-7 h-7 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1 text-sm">✕</button>
-              </div>
+      {/* Right: item list */}
+      <div className="flex-1 card overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-white/20 text-lg">Scan items to add them</div>
+        ) : items.map((item, i) => (
+          <div key={i} className="flex items-center gap-3 p-3 border-b border-white/[0.04] last:border-0">
+            {item.image_url
+              ? <img src={item.image_url} alt="" className="w-10 h-10 object-contain rounded-lg bg-white/5 flex-shrink-0" />
+              : <div className="w-10 h-10 rounded-lg bg-white/5 flex-shrink-0 flex items-center justify-center text-white/20">📦</div>}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-white/90 truncate text-sm">{item.itemName}</div>
+              <div className="text-white/30 text-xs">{item.sizeLabel}</div>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="flex items-center gap-2">
+              <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
+                className="w-9 h-9 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-lg">−</button>
+              <span className="font-bold text-white w-6 text-center">{item.quantity}</span>
+              <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
+                className="w-9 h-9 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-lg">+</button>
+              <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
+                className="w-9 h-9 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1">✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {showScanner && <BarcodeScanner onDetected={(b) => { setShowScanner(false); handleBarcode(b) }} onClose={() => setShowScanner(false)} />}
 
@@ -192,7 +184,7 @@ export default function MassStockIn() {
       {showReview && (
         <div className="fixed inset-0 bg-black/70 flex items-end z-50" onClick={() => setShowReview(false)}>
           <div className="bg-[#141414] border-t border-white/10 rounded-t-3xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-xl text-white">Submit — {effectiveStore}</h2>
+            <h2 className="font-bold text-xl text-white">Submit {items.length} items</h2>
             {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-sm border border-red-500/20">{error}</div>}
             <div className="space-y-0 max-h-52 overflow-y-auto divide-y divide-white/[0.04]">
               {items.map((item, i) => (
@@ -203,8 +195,8 @@ export default function MassStockIn() {
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3 pt-1">
-              <button onClick={() => setShowReview(false)} className="btn-secondary py-3">Back</button>
-              <button onClick={submit} disabled={loading} className="btn-primary py-3 disabled:opacity-50">{loading ? 'Saving...' : 'Submit'}</button>
+              <button onClick={() => setShowReview(false)} className="btn-secondary py-4 text-lg">Back</button>
+              <button onClick={submit} disabled={loading} className="btn-primary py-4 text-lg disabled:opacity-50">{loading ? 'Saving...' : 'Submit'}</button>
             </div>
           </div>
         </div>
@@ -241,12 +233,12 @@ function ManualAddModal({ barcode, onAdd, onClose }) {
         <h2 className="font-bold text-xl text-white">Add Item</h2>
         <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Item name" className="input" autoFocus />
         <div className="grid grid-cols-2 gap-3">
-          <input type="text" value={size} onChange={e => setSize(e.target.value)} placeholder="Size (e.g. 18oz)" className="input" />
+          <input type="text" value={size} onChange={e => setSize(e.target.value)} placeholder="Size" className="input" />
           <input type="number" min="1" value={qty} onChange={e => setQty(parseInt(e.target.value) || 1)} className="input" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={onClose} className="btn-secondary py-3">Cancel</button>
-          <button onClick={save} disabled={!name || saving} className="btn-primary py-3 disabled:opacity-40">{saving ? 'Adding...' : 'Add'}</button>
+          <button onClick={onClose} className="btn-secondary py-4 text-lg">Cancel</button>
+          <button onClick={save} disabled={!name || saving} className="btn-primary py-4 text-lg disabled:opacity-40">{saving ? 'Adding...' : 'Add'}</button>
         </div>
       </div>
     </div>

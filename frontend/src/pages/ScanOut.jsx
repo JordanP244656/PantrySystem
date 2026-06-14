@@ -75,62 +75,63 @@ export default function ScanOut() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-3 px-3 pt-5 pb-28">
-      <button
-        onClick={() => setShowScanner(true)}
-        disabled={processing}
-        className="scan-btn w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all"
-      >
-        {processing ? '⏳' : '📷 Scan Out'}
-      </button>
+    <div className="h-full flex gap-4">
+      {/* Left: scan button + status */}
+      <div className="flex flex-col gap-3 w-64 flex-shrink-0">
+        <button
+          onClick={() => setShowScanner(true)}
+          disabled={processing}
+          className="flex-1 bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold rounded-3xl text-3xl transition-all"
+        >
+          {processing ? '⏳' : '📷 Scan Out'}
+        </button>
 
-      <input
-        ref={manualRef}
-        type="text"
-        placeholder="Or type / scan barcode + Enter"
-        onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
-        className="input text-center"
-      />
+        <input
+          ref={manualRef}
+          type="text"
+          placeholder="Barcode + Enter"
+          onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { handleBarcode(e.target.value); e.target.value = '' } }}
+          className="input text-center"
+        />
 
-      {status && (
-        <div className={`p-5 rounded-2xl text-center transition-all ${
-          status.type === 'success' ? 'bg-white/10 border border-white/20' :
-          status.type === 'loading' ? 'bg-white/5' :
-          'bg-red-500/10 border border-red-500/20'
-        }`}>
-          {status.type === 'success' && (
-            <>
-              <div className="text-4xl mb-2">✓</div>
-              <div className="font-bold text-white text-lg">{status.msg}</div>
-              <button
-                onClick={async () => { if (confirm(`Remove "${status.itemName}" from the system entirely?`)) { await deleteItem(status.itemId); setStatus(null) } }}
-                className="mt-2 text-xs text-white/30 hover:text-red-400 transition-colors"
-              >
-                Remove from system
-              </button>
-            </>
-          )}
-          {status.type === 'loading' && <div className="text-white/60">{status.msg}</div>}
-          {status.type === 'error' && <div className="text-red-400 font-medium">{status.msg}</div>}
-        </div>
-      )}
+        {status && (
+          <div className={`p-4 rounded-2xl text-center ${
+            status.type === 'success' ? 'bg-white/10 border border-white/20' :
+            status.type === 'loading' ? 'bg-white/5' :
+            'bg-red-500/10 border border-red-500/20'
+          }`}>
+            {status.type === 'success' && (
+              <>
+                <div className="text-4xl mb-1">✓</div>
+                <div className="font-bold text-white">{status.msg}</div>
+                <button
+                  onClick={async () => { if (confirm(`Remove "${status.itemName}" from the system?`)) { await deleteItem(status.itemId); setStatus(null) } }}
+                  className="mt-1 text-xs text-white/30 hover:text-red-400 transition-colors"
+                >Remove from system</button>
+              </>
+            )}
+            {status.type === 'loading' && <div className="text-white/60">{status.msg}</div>}
+            {status.type === 'error' && <div className="text-red-400 font-medium">{status.msg}</div>}
+          </div>
+        )}
+      </div>
 
-      {sessionLog.length > 0 && (
-        <div className="card p-4">
-          <div className="text-xs text-white/30 uppercase tracking-wider mb-3">This Session</div>
-          <ul className="divide-y divide-white/[0.04]">
+      {/* Right: session log */}
+      <div className="flex-1 card overflow-y-auto">
+        {sessionLog.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-white/20 text-lg">Scan items to log them</div>
+        ) : (
+          <div className="divide-y divide-white/[0.04]">
+            <div className="px-4 py-2 text-xs text-white/30 uppercase tracking-wider">This Session</div>
             {sessionLog.map((entry, i) => (
-              <li key={i} className="flex items-center justify-between py-2.5">
-                <div>
-                  <div className="font-medium text-white/80 text-sm">{entry.itemName}</div>
-                  {entry.quantity > 1 && <div className="text-white/30 text-xs">×{entry.quantity} units</div>}
-                </div>
+              <div key={i} className="flex items-center justify-between px-4 py-3">
+                <div className="font-medium text-white/80">{entry.itemName}</div>
                 <div className="text-white/30 text-xs">{entry.time}</div>
-              </li>
+              </div>
             ))}
-          </ul>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {showScanner && (
         <BarcodeScanner onDetected={(b) => { setShowScanner(false); handleBarcode(b) }} onClose={() => setShowScanner(false)} />
@@ -156,25 +157,17 @@ export default function ScanOut() {
 
 function QtyPickerModal({ item, size, onConfirm, onClose }) {
   const options = Array.from({ length: size.unit_count }, (_, i) => i + 1)
-
   return (
     <div className="fixed inset-0 bg-black/70 flex items-end z-50" onClick={onClose}>
       <div className="bg-[#141414] border-t border-white/10 rounded-t-3xl w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
         <div>
           <h2 className="font-bold text-xl text-white">{item.name}</h2>
-          <p className="text-white/40 text-sm mt-0.5">{size.size_label} · Pack of {size.unit_count} — how many are you taking?</p>
+          <p className="text-white/40 text-sm mt-0.5">Pack of {size.unit_count} — how many?</p>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {options.map(n => (
-            <button
-              key={n}
-              onClick={() => onConfirm(n)}
-              className={`py-4 rounded-2xl font-bold text-lg transition-all border ${
-                n === size.unit_count
-                  ? 'bg-white text-black border-white'
-                  : 'border-white/10 bg-white/[0.04] text-white hover:bg-white/10'
-              }`}
-            >
+            <button key={n} onClick={() => onConfirm(n)}
+              className={`py-5 rounded-2xl font-bold text-xl transition-all border ${n === size.unit_count ? 'bg-white text-black border-white' : 'border-white/10 bg-white/[0.04] text-white'}`}>
               {n === size.unit_count ? `All ${n}` : n}
             </button>
           ))}

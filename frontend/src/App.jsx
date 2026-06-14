@@ -8,9 +8,9 @@ import Inventory from './pages/Inventory'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-[#0a0a0a]">
+      <div className="min-h-screen bg-[#0a0a0a] flex">
         <Navbar />
-        <main className="max-w-7xl mx-auto px-3 py-2 pb-20 md:pb-6">
+        <main className="flex-1 ml-20 p-4 h-screen overflow-hidden">
           <Routes>
             <Route path="/" element={<Navigate to="/scan-out" replace />} />
             <Route path="/scan-out" element={<ScanOut />} />
