@@ -115,7 +115,7 @@ export default function MassStockIn() {
         <div className="flex items-center justify-between">
           <span className="text-white/40 text-sm">{items.length} items</span>
           <button onClick={() => setShowReview(true)} disabled={items.length === 0}
-            className="btn-primary px-4 py-2 text-sm disabled:opacity-30">Done →</button>
+            className="btn-primary px-6 py-3 text-lg disabled:opacity-30">Done →</button>
         </div>
 
         <button onClick={() => setShowScanner(true)} disabled={scanning}
