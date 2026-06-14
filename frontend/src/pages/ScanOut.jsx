@@ -79,7 +79,7 @@ export default function ScanOut() {
       <button
         onClick={() => setShowScanner(true)}
         disabled={processing}
-        className="w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all"
+        className="scan-btn w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all"
       >
         {processing ? '⏳' : '📷 Scan Out'}
       </button>

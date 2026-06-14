@@ -26,7 +26,8 @@ export default function Navbar() {
         </div>
       </nav>
 
-      <nav className="md:hidden bg-[#0a0a0a] border-b border-white/[0.06] px-4 h-12 flex items-center">
+      {/* Top title bar - hidden on very small landscape screens to save space */}
+      <nav className="md:hidden bg-[#0a0a0a] border-b border-white/[0.06] px-4 h-10 flex items-center landscape:hidden">
         <span className="font-bold text-white text-sm">🥫 Pollack Family Pantry</span>
       </nav>
 
@@ -34,9 +35,9 @@ export default function Navbar() {
         {links.map(({ to, label, full }) => (
           <NavLink key={to} to={to}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center py-3 text-xs font-medium transition-all ${isActive ? 'text-white' : 'text-white/30'}`
+              `nav-tab flex-1 flex flex-col items-center justify-center py-3 text-xs font-medium transition-all ${isActive ? 'text-white' : 'text-white/30'}`
             }>
-            <span className="text-lg leading-none mb-0.5">{label}</span>
+            <span className="text-xl leading-none mb-0.5">{label}</span>
             <span>{full}</span>
           </NavLink>
         ))}

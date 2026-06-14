@@ -4,7 +4,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-* { font-family: 'Inter', sans-serif; }
+* { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 
 body { background: #0a0a0a; color: #f1f5f9; }
 
@@ -12,3 +12,28 @@ body { background: #0a0a0a; color: #f1f5f9; }
 .btn-primary { @apply bg-white text-black font-semibold rounded-2xl transition-all active:scale-95; }
 .btn-secondary { @apply bg-white/10 hover:bg-white/15 text-white font-semibold rounded-2xl transition-all; }
 .input { @apply w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30; }
+
+/* Small landscape touchscreen (Pi display ~800x480) */
+@media (max-height: 520px) and (orientation: landscape) {
+  body { font-size: 15px; }
+
+  /* Bigger touch targets */
+  button { min-height: 44px; }
+
+  /* Tighter spacing */
+  .pb-28 { padding-bottom: 4rem !important; }
+  .pt-5 { padding-top: 0.5rem !important; }
+  .space-y-3 > * + * { margin-top: 0.5rem !important; }
+  .space-y-4 > * + * { margin-top: 0.75rem !important; }
+
+  /* Bigger quantity buttons in item list */
+  .qty-btn { width: 2.5rem !important; height: 2.5rem !important; font-size: 1.1rem !important; }
+
+  /* Scan button smaller height in landscape */
+  .scan-btn { padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; font-size: 1.25rem !important; }
+
+  /* Navbar bottom bar bigger */
+  .nav-tab { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+  .nav-tab span:first-child { font-size: 1.4rem !important; }
+  .nav-tab span:last-child { font-size: 0.8rem !important; }
+}

@@ -126,7 +126,7 @@ export default function MassStockIn() {
       </div>
 
       <button onClick={() => setShowScanner(true)} disabled={scanning}
-        className="w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all">
+        className="scan-btn w-full bg-white hover:bg-white/90 active:bg-white/80 disabled:opacity-50 text-black font-bold py-8 rounded-3xl text-2xl transition-all">
         {scanning ? '⏳ Looking up...' : '📷 Scan Item'}
       </button>
 
@@ -169,10 +169,10 @@ export default function MassStockIn() {
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
-                  className="w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">−</button>
+                  className="qty-btn w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">−</button>
                 <span className="font-bold text-white w-5 text-center text-sm">{item.quantity}</span>
                 <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
-                  className="w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">+</button>
+                  className="qty-btn w-7 h-7 rounded-full bg-white/10 text-white font-bold text-sm flex items-center justify-center">+</button>
                 <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
                   className="w-7 h-7 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1 text-sm">✕</button>
               </div>
