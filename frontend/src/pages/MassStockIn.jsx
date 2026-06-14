@@ -152,22 +152,22 @@ export default function MassStockIn() {
         {items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-white/20 text-lg">Scan items to add them</div>
         ) : items.map((item, i) => (
-          <div key={i} className="flex items-center gap-3 p-3 border-b border-white/[0.04] last:border-0">
+          <div key={i} className="flex items-center gap-4 p-4 border-b border-white/[0.04] last:border-0">
             {item.image_url
-              ? <img src={item.image_url} alt="" className="w-10 h-10 object-contain rounded-lg bg-white/5 flex-shrink-0" />
-              : <div className="w-10 h-10 rounded-lg bg-white/5 flex-shrink-0 flex items-center justify-center text-white/20">📦</div>}
+              ? <img src={item.image_url} alt="" className="w-14 h-14 object-contain rounded-xl bg-white/5 flex-shrink-0" />
+              : <div className="w-14 h-14 rounded-xl bg-white/5 flex-shrink-0 flex items-center justify-center text-2xl">📦</div>}
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-white/90 truncate text-sm">{item.itemName}</div>
-              <div className="text-white/30 text-xs">{item.sizeLabel}</div>
+              <div className="font-semibold text-white/90 truncate text-base">{item.itemName}</div>
+              <div className="text-white/30 text-sm">{item.sizeLabel}</div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: Math.max(1, u[i].quantity - 1) }; return u })}
-                className="w-12 h-12 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-xl">−</button>
-              <span className="font-bold text-white w-6 text-center">{item.quantity}</span>
+                className="w-14 h-14 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-2xl">−</button>
+              <span className="font-bold text-white w-8 text-center text-xl">{item.quantity}</span>
               <button onClick={() => setItems(prev => { const u = [...prev]; u[i] = { ...u[i], quantity: u[i].quantity + 1 }; return u })}
-                className="w-12 h-12 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-xl">+</button>
+                className="w-14 h-14 rounded-full bg-white/10 text-white font-bold flex items-center justify-center text-2xl">+</button>
               <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1 text-xl">✕</button>
+                className="w-14 h-14 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center ml-1 text-2xl">✕</button>
             </div>
           </div>
         ))}
