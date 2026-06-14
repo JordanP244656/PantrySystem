@@ -10,7 +10,7 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-[#0a0a0a] flex">
         <Navbar />
-        <main className="flex-1 ml-20 p-4 h-screen overflow-hidden">
+        <main className="flex-1 ml-24 p-4 h-screen overflow-hidden">
           <Routes>
             <Route path="/" element={<Navigate to="/scan-out" replace />} />
             <Route path="/scan-out" element={<ScanOut />} />
